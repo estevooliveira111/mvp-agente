@@ -1,56 +1,64 @@
-import math
 from typing import List, Dict, Any
+import chromadb
 from models.memory import VectorDocument
+from core.config import settings
+from core.logger import logger
 
 class VectorMemory:
     """
-    Gerencia a Memória de Longo Prazo da IA (RAG - Retrieval-Augmented Generation).
-    Armazena e busca contextos antigos baseados em similaridade semântica.
+    Gerencia a Memória de Longo Prazo da IA (RAG) integrada fisicamente ao banco ChromaDB.
     """
-    def __init__(self):
-        # Em um ambiente de produção, substituir por ChromaDB, Pinecone, FAISS ou Qdrant.
-        # Para o MVP, usamos uma lista em memória para validar o RAG de forma simples.
-        self.documents: List[VectorDocument] = []
+    def __init__(self, collection_name: str = "mvp_knowledge_base"):
+        try:
+            # Conecta ao container ChromaDB externo
+            self.client = chromadb.HttpClient(host=settings.CHROMADB_HOST, port=settings.CHROMADB_PORT)
+            # Acessa a coleção ou a cria caso não exista
+            self.collection = self.client.get_or_create_collection(name=collection_name)
+            logger.info("Conexão com ChromaDB (Vector Memory) estabelecida com sucesso.")
+        except Exception as e:
+            logger.error(f"Falha ao conectar no ChromaDB: {e}")
+            self.client = None
+            self.collection = None
         
     def add_document(self, doc_id: str, text: str, embedding: List[float], metadata: Dict[str, Any] = None):
-        """Adiciona um novo conhecimento à memória da IA."""
-        doc = VectorDocument(id=doc_id, text=text, embedding=embedding, metadata=metadata or {})
-        self.documents.append(doc)
-        
-    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
-        """Cálculo matemático puro de similaridade entre duas frases/vetores."""
-        dot_product = sum(a * b for a, b in zip(vec1, vec2))
-        norm_a = math.sqrt(sum(a * a for a in vec1))
-        norm_b = math.sqrt(sum(b * b for b in vec2))
-        
-        if norm_a == 0 or norm_b == 0:
-            return 0.0
+        """Adiciona um novo conhecimento ao banco vetorial."""
+        if not self.collection:
+            logger.warning("ChromaDB não está conectado. Documento não salvo.")
+            return
             
-        return dot_product / (norm_a * norm_b)
+        try:
+            # ChromaDB fará a persistência física desses dados no container
+            self.collection.add(
+                ids=[doc_id],
+                embeddings=[embedding],
+                documents=[text],
+                metadatas=[metadata or {}]
+            )
+        except Exception as e:
+            logger.error(f"Erro ao adicionar documento no ChromaDB: {e}")
         
     def search_similar(self, query_embedding: List[float], top_k: int = 3) -> List[Dict[str, Any]]:
-        """
-        Busca as lembranças mais próximas da pergunta atual.
-        Útil para a IA lembrar de coisas de 3 meses atrás.
-        """
-        if not self.documents:
+        """Busca as lembranças mais próximas no ChromaDB via similaridade semântica acelerada."""
+        if not self.collection:
             return []
             
-        scored_docs = []
-        for doc in self.documents:
-            score = self._cosine_similarity(query_embedding, doc.embedding)
-            scored_docs.append((score, doc))
+        try:
+            results = self.collection.query(
+                query_embeddings=[query_embedding],
+                n_results=top_k
+            )
             
-        # Ordena do maior (mais similar) para o menor
-        scored_docs.sort(key=lambda x: x[0], reverse=True)
-        
-        # Retorna apenas os top_k (ex: 3 melhores matches)
-        results = []
-        for score, doc in scored_docs[:top_k]:
-            results.append({
-                "score": round(score, 4),
-                "text": doc.text,
-                "metadata": doc.metadata
-            })
+            output = []
+            if results and 'documents' in results and results['documents']:
+                for i in range(len(results['documents'][0])):
+                    output.append({
+                        # O ChromaDB retorna distância. Na métrica padrão (L2), menor é mais similar.
+                        "distance": results['distances'][0][i] if 'distances' in results else 0.0,
+                        "text": results['documents'][0][i],
+                        "metadata": results['metadatas'][0][i] if 'metadatas' in results else {}
+                    })
+            return output
             
-        return results
+        except Exception as e:
+            logger.error(f"Erro ao buscar documentos similares no ChromaDB: {e}")
+            return []

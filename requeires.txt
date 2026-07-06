@@ -11,3 +11,7 @@ cryptography
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
+pymemcache
+chromadb
+psycopg2-binary
+sqlalchemy
