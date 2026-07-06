@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # Banco de Dados Relacional (PostgreSQL)
+  # ==========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: mvp_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: adminpassword
+      POSTGRES_DB: mvp_agente
+    ports:
+      # Expõe a porta 5432 para que qualquer aplicação (independente do código) possa conectar
+      - "5432:5432"
+    volumes:
+      # Volume persistente para não perder os dados se o container reiniciar/for apagado
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - mvp_network
+
+  # ==========================================
+  # Memória Ultrarrápida / Cache (Memcached)
+  # ==========================================
+  memcached:
+    image: memcached:alpine
+    container_name: mvp_memcached
+    restart: always
+    ports:
+      # Expõe a porta padrão do Memcached (11211)
+      - "11211:11211"
+    command:
+      # -m 128: Limita a memória a 128MB. Pode alterar conforme a necessidade.
+      - "-m 128"
+    networks:
+      - mvp_network
+
+  # ==========================================
+  # Banco de Dados Vetorial (ChromaDB)
+  # ==========================================
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: mvp_chromadb
+    restart: always
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
+    ports:
+      # Expõe a porta padrão da API do ChromaDB
+      - "8000:8000"
+    volumes:
+      # Persiste os embeddings (vetores) para que a IA não sofra amnésia ao reiniciar o Docker
+      - chromadb_data:/chroma/chroma
+    networks:
+      - mvp_network
+
+# Define os volumes nomeados para persistir dados
+volumes:
+  postgres_data:
+  chromadb_data:
+
+# Define uma rede customizada para facilitar comunicação caso conecte outros containers no futuro
+networks:
+  mvp_network:
+    driver: bridge
