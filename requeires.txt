@@ -6,3 +6,5 @@ smtplib
 email
 opencv-python
 Pillow
+librosa
+cryptography
