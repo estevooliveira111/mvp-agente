@@ -4,3 +4,5 @@ python-dotenv
 qrcode
 smtplib
 email
+opencv-python
+Pillow
