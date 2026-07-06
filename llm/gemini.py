@@ -11,7 +11,7 @@ class GeminiLLM(BaseLLM):
     Utiliza o SDK oficial `google-generativeai`.
     """
     
-    def __init__(self, model: str = "gemini-1.5-pro"):
+    def __init__(self, model: str = "gemini-2.5-flash"):
         self.model = model
         self.api_key = os.getenv("GEMINI_API_KEY", "")
         if self.api_key:

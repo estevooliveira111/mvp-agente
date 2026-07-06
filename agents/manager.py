@@ -2,6 +2,7 @@ from core.logger import logger
 from memory.conversation import ConversationMemory
 from agents.planner import PlannerAgent
 from agents.executor import ExecutorAgent
+from models.chat import Message
 from agents.prompts import SYSTEM_PROMPT_MANAGER
 
 class ManagerAgent:
@@ -22,7 +23,9 @@ class ManagerAgent:
         logger.info(f"[Manager Agent] Processando nova mensagem na sessão {session_id} do usuário {user_id}")
         
         # 1. Carrega o contexto (As 10 últimas mensagens dessa sessão)
-        history = self.memory.get_recent_history(session_id=session_id)
+        history_objects = self.memory.get_recent_history(session_id=session_id)
+        # Parseia para o formato padrão do LLM (dict de role e content)
+        history = [{"role": msg.role, "content": msg.content} for msg in history_objects]
         
         # 2. O Planner desenha o plano tático recebendo o catálogo de ferramentas real
         plan = self.planner.create_plan(objective=raw_message, available_tools_metadata=self.tools_metadata)
@@ -61,7 +64,7 @@ class ManagerAgent:
         )
         
         # 6. Salva as duas pontas da conversa na memória (Curto prazo / Redis)
-        self.memory.add_message(session_id=session_id, role="user", content=raw_message)
-        self.memory.add_message(session_id=session_id, role="assistant", content=final_response)
+        self.memory.add_message(session_id=session_id, user_id=user_id, message=Message(role="user", content=raw_message))
+        self.memory.add_message(session_id=session_id, user_id=user_id, message=Message(role="assistant", content=final_response))
         
         return final_response
