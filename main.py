@@ -1,7 +1,7 @@
 import sys
 from core.logger import logger
 from core.config import settings
-from llm.openai import OpenAILLM  # Troque por OllamaLLM para testar local!
+from llm.factory import get_active_llm
 from memory.conversation import ConversationMemory
 from agents.planner import PlannerAgent
 from agents.executor import ExecutorAgent
@@ -23,8 +23,8 @@ def main():
     # ==========================================
     # 1. Injeção de Dependências (Wiring)
     # ==========================================
-    # O LLM escolhido
-    llm = OpenAILLM() 
+    # Descobre e carrega automaticamente o LLM configurado no .env
+    llm = get_active_llm() 
     
     # A memória (Curto prazo)
     memory = ConversationMemory()

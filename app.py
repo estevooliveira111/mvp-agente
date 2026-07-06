@@ -1,7 +1,7 @@
 import uvicorn
 from fastapi import FastAPI, Request
 from core.logger import logger
-from llm.openai import OpenAILLM
+from llm.factory import get_active_llm
 from memory.conversation import ConversationMemory
 from agents.planner import PlannerAgent
 from agents.executor import ExecutorAgent
@@ -20,7 +20,7 @@ app = FastAPI(
 # Instâncias Globais da IA (Singletons)
 # ==========================================
 # Ao instanciar fora das rotas, mantemos o estado da memória entre as requisições HTTP
-llm = OpenAILLM()
+llm = get_active_llm()
 memory = ConversationMemory()
 planner = PlannerAgent(llm_client=llm)
 executor = ExecutorAgent(tools_registry={}) # A popular com a pasta tools/

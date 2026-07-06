@@ -2,8 +2,6 @@ requests
 google-generativeai
 python-dotenv
 qrcode
-smtplib
-email
 opencv-python
 Pillow
 librosa
