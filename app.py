@@ -7,6 +7,8 @@ from agents.planner import PlannerAgent
 from agents.executor import ExecutorAgent
 from agents.manager import ManagerAgent
 
+from tools.registry import load_all_tools
+
 # ==========================================
 # Inicialização do Servidor FastAPI
 # ==========================================
@@ -23,8 +25,12 @@ app = FastAPI(
 llm = get_active_llm()
 memory = ConversationMemory()
 planner = PlannerAgent(llm_client=llm)
-executor = ExecutorAgent(tools_registry={}) # A popular com a pasta tools/
-manager = ManagerAgent(llm, memory, planner, executor)
+
+# Carrega todas as ferramentas da pasta tools dinamicamente
+tools_registry, tools_metadata = load_all_tools()
+executor = ExecutorAgent(tools_registry=tools_registry)
+
+manager = ManagerAgent(llm, memory, planner, executor, tools_metadata=tools_metadata)
 
 @app.on_event("startup")
 async def startup_event():

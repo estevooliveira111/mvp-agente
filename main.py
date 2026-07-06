@@ -7,15 +7,7 @@ from agents.planner import PlannerAgent
 from agents.executor import ExecutorAgent
 from agents.manager import ManagerAgent
 
-def get_tools_registry():
-    """
-    Simulação do carregamento das ferramentas da pasta tools/.
-    Numa versão final, este método varre a pasta tools/ dinamicamente.
-    """
-    return {
-        "web_search": lambda **kwargs: '{"status": "success", "data": "Resultado falso do DuckDuckGo"}',
-        "email_sender": lambda **kwargs: '{"status": "success", "message": "Email enviado"}'
-    }
+from tools.registry import load_all_tools
 
 def main():
     logger.info("Iniciando Interface CLI do MVP Agente...")
@@ -31,7 +23,9 @@ def main():
     
     # Os Sub-Agentes
     planner = PlannerAgent(llm_client=llm)
-    tools_registry = get_tools_registry()
+    
+    # CARREGAMENTO DINÂMICO DE FERRAMENTAS REAIS!
+    tools_registry, tools_metadata = load_all_tools()
     executor = ExecutorAgent(tools_registry=tools_registry)
     
     # O Orquestrador
@@ -39,7 +33,8 @@ def main():
         llm_client=llm,
         memory=memory,
         planner=planner,
-        executor=executor
+        executor=executor,
+        tools_metadata=tools_metadata
     )
     
     session_id = "sessao_cli_local"
