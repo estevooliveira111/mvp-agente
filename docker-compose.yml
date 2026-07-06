@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ==========================================
   # Banco de Dados Relacional (PostgreSQL)
@@ -61,7 +59,7 @@ volumes:
   postgres_data:
   chromadb_data:
 
-# Define uma rede customizada para facilitar comunicação caso conecte outros containers no futuro
+    # Define uma rede customizada para facilitar comunicação caso conecte outros containers no futuro
 networks:
   mvp_network:
     driver: bridge
