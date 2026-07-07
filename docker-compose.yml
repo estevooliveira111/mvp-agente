@@ -11,13 +11,24 @@ services:
       POSTGRES_PASSWORD: adminpassword
       POSTGRES_DB: mvp_agente
     ports:
-      # Expõe a porta 5432 para que qualquer aplicação (independente do código) possa conectar
       - "5432:5432"
     volumes:
-      # Volume persistente para não perder os dados se o container reiniciar/for apagado
       - postgres_data:/var/lib/postgresql/data
     networks:
       - mvp_network
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ==========================================
   # Memória Ultrarrápida / Cache (Memcached)
@@ -27,13 +38,24 @@ services:
     container_name: mvp_memcached
     restart: always
     ports:
-      # Expõe a porta padrão do Memcached (11211)
       - "11211:11211"
     command:
-      # -m 128: Limita a memória a 128MB. Pode alterar conforme a necessidade.
       - "-m 128"
     networks:
       - mvp_network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 192M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ==========================================
   # Banco de Dados Vetorial (ChromaDB)
@@ -46,20 +68,29 @@ services:
       - IS_PERSISTENT=TRUE
       - PERSIST_DIRECTORY=/chroma/chroma
     ports:
-      # Expõe a porta padrão da API do ChromaDB
       - "8000:8000"
     volumes:
-      # Persiste os embeddings (vetores) para que a IA não sofra amnésia ao reiniciar o Docker
       - chromadb_data:/chroma/chroma
     networks:
       - mvp_network
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-# Define os volumes nomeados para persistir dados
 volumes:
   postgres_data:
   chromadb_data:
 
-    # Define uma rede customizada para facilitar comunicação caso conecte outros containers no futuro
 networks:
   mvp_network:
     driver: bridge
