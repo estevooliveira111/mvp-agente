@@ -66,9 +66,17 @@ try:
 except ImportError:
     reminder_worker = None
 
+from database.database import engine, Base
+import database.models  # Garante que os models estão registrados no Base.metadata
+
 @app.on_event("startup")
 async def startup_event():
     logger.info("🚀 Servidor FastAPI iniciado! API pronta para receber eventos dos Canais (Webhooks).")
+    
+    # Cria as tabelas do banco de dados caso não existam
+    if engine:
+        Base.metadata.create_all(bind=engine)
+        logger.info("✅ Estrutura do banco de dados sincronizada.")
     
     if reminder_worker:
         asyncio.create_task(reminder_worker())
