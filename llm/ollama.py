@@ -24,42 +24,56 @@ class OllamaLLM(BaseLLM):
         return messages
         
     def generate_text(self, prompt: str, system_prompt: Optional[str] = None, history: Optional[List[Dict[str, str]]] = None) -> str:
-        logger.info(f"[OllamaLLM] Enviando requisição local para o modelo {self.model}")
-        try:
-            payload = {
-                "model": self.model,
-                "messages": self._build_messages(prompt, system_prompt, history),
-                "stream": False
-            }
-            # O timeout precisa ser maior para modelos locais que as vezes travam por GPU lenta
-            response = requests.post(f"{self.base_url}/api/chat", json=payload, timeout=300)
-            response.raise_for_status()
-            
-            data = response.json()
-            if "message" in data:
-                return data["message"].get("content", "")
-            return str(data)
-        except Exception as e:
-            logger.error(f"[OllamaLLM] Falha na geração local via Ollama: {e}")
-            return f"Erro de conexão com o servidor Ollama ({self.base_url}): {e}"
+        max_retries = 3
+        import time
+        for attempt in range(max_retries):
+            logger.info(f"[OllamaLLM] Enviando requisição local para o modelo {self.model} (Tentativa {attempt+1}/{max_retries})")
+            try:
+                payload = {
+                    "model": self.model,
+                    "messages": self._build_messages(prompt, system_prompt, history),
+                    "stream": False
+                }
+                # O timeout precisa ser maior para modelos locais que as vezes travam por GPU lenta
+                response = requests.post(f"{self.base_url}/api/chat", json=payload, timeout=300)
+                response.raise_for_status()
+                
+                data = response.json()
+                if "message" in data:
+                    return data["message"].get("content", "")
+                return str(data)
+            except Exception as e:
+                logger.error(f"[OllamaLLM] Falha na geração local via Ollama na tentativa {attempt+1}: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(3)  # Aguarda 3 segundos antes de tentar novamente
+                else:
+                    return f"Erro de conexão com o servidor Ollama ({self.base_url}): {e}"
+        return "Erro desconhecido ao conectar com o Ollama."
         
     def generate_json(self, prompt: str, system_prompt: Optional[str] = None) -> dict:
-        logger.info(f"[OllamaLLM] Forçando JSON nativo na requisição Ollama ({self.model})")
-        try:
-            payload = {
-                "model": self.model,
-                "messages": self._build_messages(prompt, system_prompt, None),
-                "stream": False,
-                "format": "json" # O Ollama suporta nativamente 'JSON Mode' nesta diretiva!
-            }
-            response = requests.post(f"{self.base_url}/api/chat", json=payload, timeout=300)
-            response.raise_for_status()
-            
-            content = response.json().get("message", {}).get("content", "{}")
-            return json.loads(content)
-        except json.JSONDecodeError as e:
-            logger.error(f"[OllamaLLM] Falha ao tentar decodificar retorno local para JSON: {e}")
-            return {"status": "error", "message": "O modelo não retornou um JSON válido."}
-        except Exception as e:
-            logger.error(f"[OllamaLLM] Falha crítica de conexão local: {e}")
-            return {"status": "error", "message": str(e)}
+        max_retries = 3
+        import time
+        for attempt in range(max_retries):
+            logger.info(f"[OllamaLLM] Forçando JSON nativo na requisição Ollama ({self.model}) (Tentativa {attempt+1}/{max_retries})")
+            try:
+                payload = {
+                    "model": self.model,
+                    "messages": self._build_messages(prompt, system_prompt, None),
+                    "stream": False,
+                    "format": "json" # O Ollama suporta nativamente 'JSON Mode' nesta diretiva!
+                }
+                response = requests.post(f"{self.base_url}/api/chat", json=payload, timeout=300)
+                response.raise_for_status()
+                
+                content = response.json().get("message", {}).get("content", "{}")
+                return json.loads(content)
+            except json.JSONDecodeError as e:
+                logger.error(f"[OllamaLLM] Falha ao tentar decodificar retorno local para JSON: {e}")
+                return {"status": "error", "message": "O modelo não retornou um JSON válido."}
+            except Exception as e:
+                logger.error(f"[OllamaLLM] Falha crítica de conexão local na tentativa {attempt+1}: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(3)
+                else:
+                    return {"status": "error", "message": str(e)}
+        return {"status": "error", "message": "Falha geral ao conectar com Ollama."}
