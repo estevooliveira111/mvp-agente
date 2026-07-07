@@ -46,6 +46,14 @@ processed_updates_ram = set() # Fallback de memória caso Memcached não conecte
 @app.on_event("startup")
 async def startup_event():
     logger.info("🚀 Servidor FastAPI iniciado! API pronta para receber eventos dos Canais (Webhooks).")
+    if settings.TELEGRAM_BOT_TOKEN and settings.WEBHOOK_URL:
+        try:
+            async with Bot(token=settings.TELEGRAM_BOT_TOKEN) as bot:
+                webhook_url = f"{settings.WEBHOOK_URL.rstrip('/')}/webhook/telegram"
+                await bot.set_webhook(url=webhook_url)
+                logger.info(f"✅ Webhook do Telegram registrado automaticamente em: {webhook_url}")
+        except Exception as e:
+            logger.error(f"❌ Falha ao registrar webhook do Telegram automaticamente: {e}")
 
 @app.get("/health")
 async def health_check():

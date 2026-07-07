@@ -16,6 +16,7 @@ class Settings:
     
     # Telegram
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
     
     # Email / SMTP
     SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
