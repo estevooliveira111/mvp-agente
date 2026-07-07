@@ -11,6 +11,17 @@ from tools.registry import load_all_tools
 
 from telegram import Update, Bot
 from pymemcache.client.base import Client
+import sys
+import os
+
+# Ajuste de path para importação local se necessário
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from api.routes import calendar
+except ImportError:
+    pass
+
 
 # ==========================================
 # Inicialização do Servidor FastAPI
@@ -20,6 +31,12 @@ app = FastAPI(
     description="Interface de Webhooks robusta com deduplicação para conectar canais com a IA.",
     version="1.1.0"
 )
+
+try:
+    from api.routes import calendar
+    app.include_router(calendar.router)
+except Exception as e:
+    logger.error(f"Não foi possível carregar rotas do calendário: {e}")
 
 # ==========================================
 # Instâncias Globais da IA (Singletons)
@@ -43,9 +60,19 @@ except Exception:
 
 processed_updates_ram = set() # Fallback de memória caso Memcached não conecte
 
+import asyncio
+try:
+    from core.scheduler import reminder_worker
+except ImportError:
+    reminder_worker = None
+
 @app.on_event("startup")
 async def startup_event():
     logger.info("🚀 Servidor FastAPI iniciado! API pronta para receber eventos dos Canais (Webhooks).")
+    
+    if reminder_worker:
+        asyncio.create_task(reminder_worker())
+        
     if settings.TELEGRAM_BOT_TOKEN and settings.WEBHOOK_URL:
         try:
             async with Bot(token=settings.TELEGRAM_BOT_TOKEN) as bot:

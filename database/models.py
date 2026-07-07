@@ -47,3 +47,32 @@ class MessageDB(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
     session = relationship("ChatSessionDB", back_populates="messages")
+
+class EventDB(Base):
+    """Tabela de Eventos da Agenda (Módulo de Agenda nativo)."""
+    __tablename__ = "events"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    organization_id = Column(String, index=True, nullable=True) # Para suporte a multi-tenant
+    
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    category = Column(String, nullable=True)
+    
+    start_time = Column(DateTime, nullable=False, index=True)
+    end_time = Column(DateTime, nullable=False, index=True)
+    
+    location = Column(String, nullable=True)
+    meeting_link = Column(String, nullable=True)
+    participants = Column(JSON, default=[]) # Lista de emails/nomes
+    
+    priority = Column(String, default="medium") # low, medium, high
+    status = Column(String, default="scheduled") # scheduled, cancelled, completed
+    recurrence = Column(String, nullable=True) # ex: 'FREQ=WEEKLY;INTERVAL=1'
+    reminders = Column(JSON, default=[]) # Lista de lembretes em minutos: [15, 60] (15m, 1h antes)
+    
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    
+    user = relationship("User")
