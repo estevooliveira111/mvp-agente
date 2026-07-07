@@ -1,35 +1,37 @@
-# 🤖 MVP Agente - Inteligência Artificial Corporativa
+# MVP Agente
 
-Este repositório contém a arquitetura completa e de nível de produção para o **MVP Agente**, um orquestrador multi-agentes projetado para atuar em diversos canais (Telegram, WhatsApp, Web), integrando memórias avançadas, bancos de dados, ferramentas forenses e de comunicação externa.
+Orquestrador multi-agentes em Python, projetado para atuar em diversos canais (Telegram, WhatsApp, Web), integrando memória de curto/longo prazo, banco relacional e um catálogo de ferramentas (busca, e-mail, forense de imagem/áudio).
+
+Este é um MVP em desenvolvimento ativo: a arquitetura segue padrões conhecidos (Strategy para os LLMs, injeção de dependências entre agentes, registry com auto-discovery de tools), mas ainda não há suíte de testes automatizada nem hardening de produção — trate como base sólida para evoluir, não como sistema pronto para produção.
 
 ---
 
 ## 🏗 Arquitetura do Projeto
 
-O sistema foi estruturado de forma modular e escalável, aplicando padrões rigorosos de Engenharia de Software (SOLID, Injeção de Dependências, Strategy):
+O sistema é modular, aplicando alguns padrões de Engenharia de Software (injeção de dependências, Strategy):
 
-- **`agents/`**: O "cérebro" inteligente. Segue um padrão _Multi-Agent_ onde:
-  - **Manager**: Conversa amigavelmente com o usuário e orquestra o fluxo.
-  - **Planner**: Pensa friamente e desenha o plano de ação (JSON/Pipeline).
-  - **Executor**: Executa cegamente as funções em Python requeridas no plano.
-- **`channels/`**: A camada de _Gateway_. Recebe Webhooks externos (ex: Telegram) e normaliza os payloads. O arquivo principal `app.py` expõe esses endpoints de entrada via **FastAPI**.
-- **`core/`**: O pilar de infraestrutura do sistema. Contém o motor central de variáveis de ambiente (`config.py`), um sistema profissional de logs salvos em disco (`logger.py`), controle de exceções arquiteturais e um `SecurityManager` nativo para criptografia simétrica e Hash (SHA-256).
-- **`database/`**: Motor relacional utilizando **SQLAlchemy** e **PostgreSQL**. Define as tabelas (Models) e migrações (Alembic) para rastrear Usuários, Histórico Bruto e Sessões de Chat com segurança.
-- **`llm/`**: Baseado no Design Pattern _Strategy_. Oferece acoplamento nativo a múltiplos motores de inteligência, sendo extremamente fácil trocar de cérebro sem alterar o projeto:
+- **`agents/`**: Padrão _Multi-Agent_ simples, onde:
+  - **Manager**: Conversa com o usuário e orquestra o fluxo.
+  - **Planner**: Recebe o objetivo e o catálogo de tools, e desenha um plano de ação (JSON/Pipeline).
+  - **Executor**: Executa as funções Python indicadas no plano.
+- **`channels/`**: Camada de _Gateway_. Recebe Webhooks externos (ex: Telegram) e normaliza os payloads. O arquivo principal `app.py` expõe esses endpoints via **FastAPI**.
+- **`core/`**: Infraestrutura do sistema — variáveis de ambiente (`config.py`), logging em disco (`logger.py`), exceções customizadas e um `SecurityManager` para criptografia simétrica (Fernet) e hash (SHA-256).
+- **`database/`**: **SQLAlchemy** + **PostgreSQL**. Define as tabelas (Models) para Usuários, Histórico e Sessões de Chat.
+- **`llm/`**: Design Pattern _Strategy_ para trocar de provedor de LLM sem alterar os agentes:
   - **OpenAI** (GPT-4o, GPT-3.5)
-  - **Anthropic** (Claude 3 Opus/Sonnet)
-  - **Ollama** (Modelos open-source locais via HTTP para 100% de privacidade).
-- **`memory/`**: Sistema triplo de recordação de eventos:
-  - _Curto Prazo_: Buffer contextual gerenciado ativamente.
-  - _Longo Prazo (RAG)_: Busca semântica acelerada utilizando os vetores nativos do **ChromaDB**.
-  - _Curto Prazo/Velocidade_: Gerenciamento em alta performance no **Memcached** (Caches rápidos, Rate Limits).
-- **`models/`**: _Data classes_ para garantir a tipagem rígida dos dados que circulam entre as pastas.
-- **`tools/`**: O verdadeiro arsenal de superpoderes do Agente (Registry). O catálogo atual inclui:
-  - 🔎 Web Search DuckDuckGo, Automação do Google Calendar
-  - 📧 SMTP Mailer (com envio criptografado) e Notificações (Telegram Sender)
-  - 🔐 Criptografia Militar de mão dupla (Fernet)
-  - 📸 Forense Visual: Processador Híbrido (Pillow+OpenCV), Anonimizador Facial Seguro e Detector de Adulteração (Tamper/ELA).
-  - 🎙️ Analisador de Áudio via Librosa (Frequência e Conteúdo Sensível).
+  - **Anthropic** (Claude)
+  - **Ollama** (modelos locais via HTTP).
+- **`memory/`**: Três mecanismos de memória:
+  - _Curto prazo_: buffer de histórico da conversa.
+  - _Longo prazo (RAG)_: busca semântica via **ChromaDB**.
+  - _Cache/velocidade_: **Memcached** (caches rápidos, rate limits).
+- **`models/`**: _Data classes_ para tipar os dados que circulam entre as camadas.
+- **`tools/`**: Catálogo de ferramentas descobertas automaticamente pelo Registry. Inclui:
+  - Web Search (DuckDuckGo), automação do Google Calendar
+  - SMTP Mailer e notificações via Telegram
+  - Criptografia simétrica (Fernet)
+  - Processamento de imagem (Pillow+OpenCV), anonimização facial e detecção de adulteração (ELA/tamper)
+  - Análise de áudio via Librosa
 
 ---
 
@@ -80,7 +82,7 @@ POSTGRES_PORT=5432
 A arquitetura oferece dois pontos de entrada para inicialização do ecossistema:
 
 - **Modo Web Server / Webhooks (API)**
-  Para ambiente de produção. Sobe a API construída no FastAPI escutando requisições, por exemplo, originadas pela API do Telegram:
+  Sobe a API construída no FastAPI escutando requisições, por exemplo, originadas pela API do Telegram:
 
   ```bash
   python app.py

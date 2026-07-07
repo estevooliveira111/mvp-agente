@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from core.exceptions import ConfigurationException
 
 # Carrega as variáveis de ambiente na inicialização do módulo Core
 load_dotenv()
@@ -29,8 +30,19 @@ class Settings:
     POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
     POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", 5432))
     POSTGRES_USER = os.getenv("POSTGRES_USER", "admin")
-    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "adminpassword")
     POSTGRES_DB = os.getenv("POSTGRES_DB", "mvp_agente")
+
+    # POSTGRES_PASSWORD não tem default: se vazar para produção sem .env configurado,
+    # deve falhar alto ao invés de conectar silenciosamente com uma senha fraca conhecida.
+    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+    if not POSTGRES_PASSWORD:
+        if ENVIRONMENT == "development":
+            POSTGRES_PASSWORD = "adminpassword"
+        else:
+            raise ConfigurationException(
+                "POSTGRES_PASSWORD não foi definida no .env. "
+                "Obrigatória fora do ambiente 'development'."
+            )
     
     MEMCACHED_HOST = os.getenv("MEMCACHED_HOST", "localhost")
     MEMCACHED_PORT = int(os.getenv("MEMCACHED_PORT", 11211))
