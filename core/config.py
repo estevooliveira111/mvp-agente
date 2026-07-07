@@ -25,6 +25,8 @@ class Settings:
     
     # AI Models
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
+    OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     
     # Bancos de Dados / Infraestrutura
     POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")

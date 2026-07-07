@@ -33,4 +33,5 @@ def get_active_llm() -> BaseLLM:
     logger.warning("[LLM Factory] Realizando fallback de emergência para motor open-source local (Ollama).")
     logger.warning("Certifique-se que o serviço Ollama está rodando na porta 11434.")
     from llm.ollama import OllamaLLM
-    return OllamaLLM()
+    from core.config import settings
+    return OllamaLLM(model=settings.OLLAMA_MODEL, base_url=settings.OLLAMA_BASE_URL)
