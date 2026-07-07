@@ -13,7 +13,7 @@ async def reminder_worker():
     perto de acontecer, disparando as notificações via Telegram.
     """
     logger.info("⏰ Background Worker de Lembretes iniciado!")
-    
+
     bot = Bot(token=settings.TELEGRAM_BOT_TOKEN) if settings.TELEGRAM_BOT_TOKEN else None
     
     while True:
