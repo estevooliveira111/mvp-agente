@@ -1,5 +1,6 @@
 import uvicorn
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from core.logger import logger
 from core.config import settings
 from core.agent_bootstrap import manager
@@ -25,6 +26,14 @@ app = FastAPI(
     title="MVP Agente - API Gateway",
     description="Interface de Webhooks robusta com deduplicação para conectar canais com a IA.",
     version="1.1.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 try:

@@ -58,6 +58,16 @@ class Settings:
     # Chave mestre (opcional) que pode ser usada no SecurityManager
     MASTER_ENCRYPTION_KEY = os.getenv("MASTER_ENCRYPTION_KEY", "")
 
+    # CORS: origens do front-end autorizadas a chamar esta API.
+    # Padrão cobre o dev server do Vite (ui/). Em produção, defina via .env.
+    CORS_ORIGINS = [
+        origin.strip()
+        for origin in os.getenv(
+            "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+        ).split(",")
+        if origin.strip()
+    ]
+
 # Instância Singleton global para importação em outros arquivos:
 # from core.config import settings
 settings = Settings()
