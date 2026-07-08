@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/store/useAuth'
 import { useTheme } from '@/store/useTheme'
-import { 
-  LayoutDashboard, 
-  Settings, 
-  LogOut, 
-  Menu, 
-  Moon, 
-  Sun, 
+import {
+  LayoutDashboard,
+  MessageSquare,
+  Settings,
+  LogOut,
+  Menu,
+  Moon,
+  Sun,
   Bell,
   Search
 } from 'lucide-react'
@@ -31,7 +32,8 @@ export default function DashboardLayout() {
   }
 
   const navItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+    { icon: MessageSquare, label: 'Conversas', path: '/chat' },
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ]
 

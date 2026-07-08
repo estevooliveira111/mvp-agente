@@ -38,6 +38,12 @@ try:
 except Exception as e:
     logger.error(f"Não foi possível carregar rotas do calendário: {e}")
 
+try:
+    from api.routes import chat
+    app.include_router(chat.router)
+except Exception as e:
+    logger.error(f"Não foi possível carregar rotas do chat: {e}")
+
 # ==========================================
 # Instâncias Globais da IA (Singletons)
 # ==========================================

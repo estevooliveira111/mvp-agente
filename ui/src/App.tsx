@@ -11,6 +11,8 @@ import DashboardLayout from '@/layouts/DashboardLayout'
 // Pages
 import Dashboard from '@/pages/Dashboard'
 import Login from '@/pages/Login'
+import ChatHistory from '@/pages/ChatHistory'
+import Settings from '@/pages/Settings'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -47,8 +49,10 @@ function App() {
                 </ProtectedRoute>
               }
             >
-              <Route index element={<Dashboard />} />
-              {/* Add more protected routes here */}
+              <Route index element={<Navigate to="/chat" replace />} />
+              <Route path="/chat" element={<ChatHistory />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/settings" element={<Settings />} />
             </Route>
 
             {/* Fallback */}
