@@ -2,12 +2,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 from core.logger import logger
 from core.config import settings
-from llm.factory import get_active_llm
-from memory.conversation import ConversationMemory
-from agents.planner import PlannerAgent
-from agents.executor import ExecutorAgent
-from agents.manager import ManagerAgent
-from tools.registry import load_all_tools
+from core.agent_bootstrap import manager
 
 from telegram import Update, Bot
 from pymemcache.client.base import Client
@@ -45,18 +40,6 @@ except Exception as e:
     logger.error(f"Não foi possível carregar rotas do chat: {e}")
 
 # ==========================================
-# Instâncias Globais da IA (Singletons)
-# ==========================================
-llm = get_active_llm()
-memory = ConversationMemory()
-planner = PlannerAgent(llm_client=llm)
-
-tools_registry, tools_metadata = load_all_tools()
-executor = ExecutorAgent(tools_registry=tools_registry)
-
-manager = ManagerAgent(llm, memory, planner, executor, tools_metadata=tools_metadata)
-
-# ==========================================
 # Instância de Cache para Deduplicação
 # ==========================================
 try:
@@ -75,6 +58,8 @@ except ImportError:
 from database.database import engine, Base
 import database.models  # Garante que os models estão registrados no Base.metadata
 
+from channels.discord_bot import start_discord_bot_background
+
 @app.on_event("startup")
 async def startup_event():
     logger.info("🚀 Servidor FastAPI iniciado! API pronta para receber eventos dos Canais (Webhooks).")
@@ -84,6 +69,10 @@ async def startup_event():
         Base.metadata.create_all(bind=engine)
         logger.info("✅ Estrutura do banco de dados sincronizada.")
     
+    # Inicia o worker do Discord em background
+    logger.info("Iniciando bot do Discord...")
+    start_discord_bot_background()
+
     if reminder_worker:
         asyncio.create_task(reminder_worker())
         

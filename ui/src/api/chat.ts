@@ -27,3 +27,20 @@ export async function fetchChatMessages(sessionId: string): Promise<ChatMessage[
   const { data } = await api.get<ChatMessage[]>(`/chat/sessions/${sessionId}/messages`)
   return data
 }
+
+export interface SendMessageResponse {
+  session_id: string
+  reply: string
+}
+
+export async function sendChatMessage(
+  sessionId: string,
+  externalId: string,
+  message: string
+): Promise<SendMessageResponse> {
+  const { data } = await api.post<SendMessageResponse>(`/chat/sessions/${sessionId}/messages`, {
+    external_id: externalId,
+    message,
+  })
+  return data
+}

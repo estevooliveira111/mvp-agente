@@ -1,9 +1,15 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format, formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Bot, Loader2, MessageSquare, Search, User as UserIcon } from 'lucide-react'
-import { fetchChatMessages, fetchChatSessions, type ChatMessage, type ChatSessionSummary } from '@/api/chat'
+import { Bot, Loader2, MessageSquare, Plus, Search, Send, User as UserIcon } from 'lucide-react'
+import {
+  fetchChatMessages,
+  fetchChatSessions,
+  sendChatMessage,
+  type ChatMessage,
+  type ChatSessionSummary,
+} from '@/api/chat'
 
 const STORAGE_KEY = 'chat_external_id'
 
@@ -11,6 +17,10 @@ export default function ChatHistory() {
   const [externalId, setExternalId] = useState(() => localStorage.getItem(STORAGE_KEY) || '')
   const [searchInput, setSearchInput] = useState(externalId)
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
+  const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const queryClient = useQueryClient()
 
   const sessionsQuery = useQuery({
     queryKey: ['chat-sessions', externalId],
@@ -24,18 +34,51 @@ export default function ChatHistory() {
     enabled: !!selectedSessionId,
   })
 
+  const sendMutation = useMutation({
+    mutationFn: (message: string) => sendChatMessage(selectedSessionId as string, externalId, message),
+    onSuccess: () => {
+      setPendingUserMessage(null)
+      queryClient.invalidateQueries({ queryKey: ['chat-messages', selectedSessionId] })
+      queryClient.invalidateQueries({ queryKey: ['chat-sessions', externalId] })
+    },
+    onError: () => {
+      setPendingUserMessage(null)
+    },
+  })
+
   useEffect(() => {
     if (sessionsQuery.data && sessionsQuery.data.length > 0 && !selectedSessionId) {
       setSelectedSessionId(sessionsQuery.data[0].session_id)
     }
   }, [sessionsQuery.data, selectedSessionId])
 
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
+  }, [messagesQuery.data, pendingUserMessage, sendMutation.isPending])
+
   const handleSearch = (e: FormEvent) => {
     e.preventDefault()
     const trimmed = searchInput.trim()
     localStorage.setItem(STORAGE_KEY, trimmed)
     setSelectedSessionId(null)
+    setDraft('')
+    setPendingUserMessage(null)
     setExternalId(trimmed)
+  }
+
+  const handleNewSession = () => {
+    setSelectedSessionId(`web-${crypto.randomUUID()}`)
+    setDraft('')
+    setPendingUserMessage(null)
+  }
+
+  const handleSend = (e: FormEvent) => {
+    e.preventDefault()
+    const trimmed = draft.trim()
+    if (!trimmed || !selectedSessionId || sendMutation.isPending) return
+    setPendingUserMessage(trimmed)
+    setDraft('')
+    sendMutation.mutate(trimmed)
   }
 
   return (
@@ -64,15 +107,22 @@ export default function ChatHistory() {
 
       {!externalId && (
         <div className="p-10 text-center text-muted-foreground bg-card border border-border rounded-xl">
-          Informe o ID do usuário acima para carregar o histórico de conversas.
+          Informe o ID do usuário acima para conversar com o agente e ver o histórico.
         </div>
       )}
 
       {externalId && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-[600px]">
           <div className="bg-card border border-border rounded-xl overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-border">
-              <h3 className="font-semibold text-foreground">Sessões</h3>
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <h3 className="font-semibold text-foreground">Conversas</h3>
+              <button
+                onClick={handleNewSession}
+                className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Nova
+              </button>
             </div>
             <div className="flex-1 overflow-y-auto">
               {sessionsQuery.isLoading && (
@@ -87,7 +137,7 @@ export default function ChatHistory() {
               )}
               {sessionsQuery.data?.length === 0 && (
                 <div className="p-6 text-sm text-muted-foreground">
-                  Nenhuma conversa encontrada para este usuário.
+                  Nenhuma conversa encontrada. Clique em "Nova" para começar.
                 </div>
               )}
               {sessionsQuery.data?.map((session) => (
@@ -104,25 +154,67 @@ export default function ChatHistory() {
           <div className="md:col-span-2 bg-card border border-border rounded-xl overflow-hidden flex flex-col">
             <div className="p-4 border-b border-border">
               <h3 className="font-semibold text-foreground">
-                {selectedSessionId ? `Sessão ${selectedSessionId}` : 'Selecione uma conversa'}
+                {selectedSessionId ? `Sessão ${selectedSessionId}` : 'Selecione ou inicie uma conversa'}
               </h3>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
               {!selectedSessionId && (
                 <div className="h-full flex items-center justify-center text-muted-foreground text-sm gap-2">
                   <MessageSquare className="h-5 w-5" />
-                  Escolha uma conversa na lista ao lado.
+                  Escolha uma conversa ao lado ou clique em "Nova".
                 </div>
               )}
-              {messagesQuery.isLoading && (
+              {selectedSessionId && messagesQuery.isLoading && (
                 <div className="flex justify-center text-muted-foreground">
                   <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+              )}
+              {selectedSessionId && messagesQuery.data?.length === 0 && !pendingUserMessage && (
+                <div className="h-full flex items-center justify-center text-muted-foreground text-sm text-center px-8">
+                  Escreva algo abaixo — ex: "agende uma reunião amanhã às 10h", "manda um e-mail para
+                  fulano@exemplo.com" ou "pesquise sobre..."
                 </div>
               )}
               {messagesQuery.data?.map((message) => (
                 <ChatBubble key={message.id} message={message} />
               ))}
+              {pendingUserMessage && (
+                <ChatBubble
+                  message={{
+                    id: -1,
+                    role: 'user',
+                    content: pendingUserMessage,
+                    created_at: new Date().toISOString(),
+                  }}
+                />
+              )}
+              {sendMutation.isPending && <TypingBubble />}
+              {sendMutation.isError && (
+                <p className="text-xs text-destructive text-center">
+                  O agente não conseguiu responder agora. Tente de novo.
+                </p>
+              )}
             </div>
+
+            {selectedSessionId && (
+              <form onSubmit={handleSend} className="p-4 border-t border-border flex gap-2">
+                <input
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder="Digite sua mensagem..."
+                  disabled={sendMutation.isPending}
+                  className="flex-1 px-4 py-2 bg-background border border-border rounded-full text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+                />
+                <button
+                  type="submit"
+                  disabled={sendMutation.isPending || !draft.trim()}
+                  className="w-10 h-10 shrink-0 flex items-center justify-center bg-primary text-primary-foreground rounded-full hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -186,6 +278,19 @@ function ChatBubble({ message }: { message: ChatMessage }) {
           <UserIcon className="h-4 w-4 text-muted-foreground" />
         </div>
       )}
+    </div>
+  )
+}
+
+function TypingBubble() {
+  return (
+    <div className="flex gap-3 justify-start">
+      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+        <Bot className="h-4 w-4 text-primary" />
+      </div>
+      <div className="rounded-2xl px-4 py-3 bg-muted text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+      </div>
     </div>
   )
 }
