@@ -5,6 +5,7 @@ import { useTheme } from '@/store/useTheme'
 import {
   LayoutDashboard,
   MessageSquare,
+  CalendarDays,
   Settings,
   LogOut,
   Menu,
@@ -33,6 +34,7 @@ export default function DashboardLayout() {
 
   const navItems = [
     { icon: MessageSquare, label: 'Conversas', path: '/chat' },
+    { icon: CalendarDays, label: 'Agenda', path: '/agenda' },
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ]

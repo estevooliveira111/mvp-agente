@@ -12,6 +12,7 @@ import DashboardLayout from '@/layouts/DashboardLayout'
 import Dashboard from '@/pages/Dashboard'
 import Login from '@/pages/Login'
 import ChatHistory from '@/pages/ChatHistory'
+import Agenda from '@/pages/Agenda'
 import Settings from '@/pages/Settings'
 
 const queryClient = new QueryClient({
@@ -51,6 +52,7 @@ function App() {
             >
               <Route index element={<Navigate to="/chat" replace />} />
               <Route path="/chat" element={<ChatHistory />} />
+              <Route path="/agenda" element={<Agenda />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/settings" element={<Settings />} />
             </Route>

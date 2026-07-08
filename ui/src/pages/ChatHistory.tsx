@@ -10,12 +10,10 @@ import {
   type ChatMessage,
   type ChatSessionSummary,
 } from '@/api/chat'
-
-const STORAGE_KEY = 'chat_external_id'
+import { useExternalId } from '@/hooks/useExternalId'
 
 export default function ChatHistory() {
-  const [externalId, setExternalId] = useState(() => localStorage.getItem(STORAGE_KEY) || '')
-  const [searchInput, setSearchInput] = useState(externalId)
+  const { externalId, searchInput, setSearchInput, handleSearch: handleIdSearch } = useExternalId()
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null)
@@ -57,13 +55,10 @@ export default function ChatHistory() {
   }, [messagesQuery.data, pendingUserMessage, sendMutation.isPending])
 
   const handleSearch = (e: FormEvent) => {
-    e.preventDefault()
-    const trimmed = searchInput.trim()
-    localStorage.setItem(STORAGE_KEY, trimmed)
+    handleIdSearch(e)
     setSelectedSessionId(null)
     setDraft('')
     setPendingUserMessage(null)
-    setExternalId(trimmed)
   }
 
   const handleNewSession = () => {
