@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 from sqlalchemy.orm import Session
 
 from core.auth import get_current_user
@@ -71,8 +71,7 @@ class EventResponse(BaseModel):
     status: str
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.post("/events", response_model=EventResponse)
@@ -148,7 +147,7 @@ def update_event(
     if not db_event:
         raise HTTPException(status_code=404, detail="Evento não encontrado.")
 
-    for field, value in payload.dict(exclude_unset=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(db_event, field, value)
 
     db.commit()

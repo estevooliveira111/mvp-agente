@@ -15,5 +15,6 @@ anthropic
 fastapi
 uvicorn
 python-telegram-bot
+discord.py
 python-jose[cryptography]
 python-multipart
