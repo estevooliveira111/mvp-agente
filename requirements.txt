@@ -6,9 +6,6 @@ opencv-python
 Pillow
 librosa
 cryptography
-google-api-python-client
-google-auth-httplib2
-google-auth-oauthlib
 pymemcache
 chromadb
 psycopg2-binary
@@ -18,3 +15,5 @@ anthropic
 fastapi
 uvicorn
 python-telegram-bot
+python-jose[cryptography]
+python-multipart

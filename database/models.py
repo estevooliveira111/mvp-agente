@@ -11,6 +11,12 @@ class User(Base):
     # Identificador que vem do canal. Ex: número de telefone do Zap, ou ID do Telegram
     external_id = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=True)
+
+    # Senha para login via API (JWT). Fica nula para usuários criados só por um bot
+    # (Telegram/Discord) até que façam POST /api/v1/auth/register.
+    hashed_password = Column(String, nullable=True)
+    password_salt = Column(String, nullable=True)
+
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
     # Relacionamento com as sessões de chat desse usuário

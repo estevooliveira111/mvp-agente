@@ -6,9 +6,11 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from core.agent_bootstrap import manager
+from core.auth import get_current_user
 from core.logger import logger
 from database.chat_repository import list_messages_for_session, list_sessions_for_user
 from database.database import get_db
+from database.models import ChatSessionDB, User
 
 router = APIRouter(prefix="/api/v1/chat", tags=["Chat"])
 
@@ -33,11 +35,13 @@ class SessionSummary(BaseModel):
 
 
 @router.get("/sessions", response_model=List[SessionSummary])
-def get_sessions(external_id: str, db: Session = Depends(get_db)):
+def get_sessions(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
     if db is None:
         raise HTTPException(status_code=503, detail="Banco de dados indisponível.")
 
-    sessions = list_sessions_for_user(db, external_id)
+    sessions = list_sessions_for_user(db, current_user.external_id)
 
     summaries = []
     for session in sessions:
@@ -57,17 +61,30 @@ def get_sessions(external_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/sessions/{session_id}/messages", response_model=List[MessageResponse])
-def get_session_messages(session_id: str, db: Session = Depends(get_db)):
+def get_session_messages(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     if db is None:
         raise HTTPException(status_code=503, detail="Banco de dados indisponível.")
 
+    session = db.query(ChatSessionDB).filter(ChatSessionDB.session_id == session_id).first()
+
     # Sessão nova (ainda sem mensagens no banco) retorna lista vazia, não 404 —
     # o front-end usa isso para abrir uma conversa que o usuário acabou de iniciar.
+    if not session:
+        return []
+
+    # Sessão existe mas pertence a outro usuário: trata como inexistente (não confirma
+    # a existência de dados de outra pessoa).
+    if session.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada.")
+
     return list_messages_for_session(db, session_id) or []
 
 
 class SendMessageRequest(BaseModel):
-    external_id: str
     message: str
 
 
@@ -77,7 +94,11 @@ class SendMessageResponse(BaseModel):
 
 
 @router.post("/sessions/{session_id}/messages", response_model=SendMessageResponse)
-def send_message(session_id: str, payload: SendMessageRequest):
+def send_message(
+    session_id: str,
+    payload: SendMessageRequest,
+    current_user: User = Depends(get_current_user),
+):
     """
     Envia uma mensagem em linguagem natural para o agente (mesmo fluxo do Telegram)
     e devolve a resposta já sintetizada. O agente decide sozinho quais ferramentas
@@ -86,7 +107,7 @@ def send_message(session_id: str, payload: SendMessageRequest):
     try:
         reply = manager.process_message(
             session_id=session_id,
-            user_id=payload.external_id,
+            user_id=current_user.external_id,
             raw_message=payload.message,
         )
     except Exception as e:

@@ -17,10 +17,11 @@ tool_metadata = {
     }
 }
 
-def execute(arguments: dict) -> str:
+def execute(**kwargs) -> str:
     """
     Executa a ferramenta da Agenda baseada na ação informada.
     """
+    arguments = kwargs
     action = arguments.get("action")
     user_id = arguments.get("user_id", 1)  # Mocked user 1 if not provided
     

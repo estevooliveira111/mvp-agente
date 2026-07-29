@@ -68,6 +68,22 @@ class Settings:
         if origin.strip()
     ]
 
+    # Autenticação (JWT) das rotas REST de calendário/chat.
+    # Mesma regra do POSTGRES_PASSWORD: sem valor fora de 'development', falha alto
+    # em vez de assinar tokens com uma chave fraca conhecida.
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+    if not JWT_SECRET_KEY:
+        if ENVIRONMENT == "development":
+            JWT_SECRET_KEY = "dev-only-insecure-secret-key"
+        else:
+            raise ConfigurationException(
+                "JWT_SECRET_KEY não foi definida no .env. "
+                "Obrigatória fora do ambiente 'development'."
+            )
+
+    JWT_ALGORITHM = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
+
 # Instância Singleton global para importação em outros arquivos:
 # from core.config import settings
 settings = Settings()

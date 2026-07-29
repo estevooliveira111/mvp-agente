@@ -20,34 +20,35 @@ async def reminder_worker():
         try:
             if bot:
                 db = SessionLocal()
-                now = datetime.utcnow()
-                
-                # Para simplificar, buscamos eventos que vão ocorrer na próxima 1 hora
-                # que ainda estejam como 'scheduled'.
-                upcoming_window = now + timedelta(hours=1)
-                
-                events = db.query(EventDB).filter(
-                    EventDB.status == "scheduled",
-                    EventDB.start_time > now,
-                    EventDB.start_time <= upcoming_window
-                ).all()
-                
-                for ev in events:
-                    # Verifica se o evento está a exatos 'N' minutos de distância com base na lista de reminders
-                    time_diff = ev.start_time - now
-                    minutes_left = int(time_diff.total_seconds() / 60)
-                    
-                    for r in ev.reminders:
-                        # Se faltar exatos 'r' minutos (margem de 1 minuto por causa do sleep)
-                        if r - 1 <= minutes_left <= r + 1:
-                            logger.info(f"[Lembrete] Disparando alarme para evento {ev.id} ({minutes_left} min restantes)")
-                            # Como não temos a amarração exata de Telegram ID no model User (tem external_id)
-                            # Enviamos o aviso (supondo que user_id ou o próprio DB guarde o chat_id no future)
-                            # Aqui usaríamos o bot.send_message
-                            pass
-                            
-                db.close()
-                
+                try:
+                    now = datetime.utcnow()
+
+                    # Para simplificar, buscamos eventos que vão ocorrer na próxima 1 hora
+                    # que ainda estejam como 'scheduled'.
+                    upcoming_window = now + timedelta(hours=1)
+
+                    events = db.query(EventDB).filter(
+                        EventDB.status == "scheduled",
+                        EventDB.start_time > now,
+                        EventDB.start_time <= upcoming_window
+                    ).all()
+
+                    for ev in events:
+                        # Verifica se o evento está a exatos 'N' minutos de distância com base na lista de reminders
+                        time_diff = ev.start_time - now
+                        minutes_left = int(time_diff.total_seconds() / 60)
+
+                        for r in ev.reminders:
+                            # Se faltar exatos 'r' minutos (margem de 1 minuto por causa do sleep)
+                            if r - 1 <= minutes_left <= r + 1:
+                                logger.info(f"[Lembrete] Disparando alarme para evento {ev.id} ({minutes_left} min restantes)")
+                                # Como não temos a amarração exata de Telegram ID no model User (tem external_id)
+                                # Enviamos o aviso (supondo que user_id ou o próprio DB guarde o chat_id no future)
+                                # Aqui usaríamos o bot.send_message
+                                pass
+                finally:
+                    db.close()
+
         except Exception as e:
             logger.error(f"Erro no worker de lembretes: {e}")
             

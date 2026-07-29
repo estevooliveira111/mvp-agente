@@ -48,6 +48,12 @@ try:
 except Exception as e:
     logger.error(f"Não foi possível carregar rotas do chat: {e}")
 
+try:
+    from api.routes import auth
+    app.include_router(auth.router)
+except Exception as e:
+    logger.error(f"Não foi possível carregar rotas de autenticação: {e}")
+
 # ==========================================
 # Instância de Cache para Deduplicação
 # ==========================================

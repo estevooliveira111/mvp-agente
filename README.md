@@ -2,7 +2,7 @@
 
 Orquestrador multi-agentes em Python, projetado para atuar em diversos canais (Telegram, WhatsApp, Web), integrando memória de curto/longo prazo, banco relacional e um catálogo de ferramentas (busca, e-mail, forense de imagem/áudio).
 
-Este é um MVP em desenvolvimento ativo: a arquitetura segue padrões conhecidos (Strategy para os LLMs, injeção de dependências entre agentes, registry com auto-discovery de tools), mas ainda não há suíte de testes automatizada nem hardening de produção — trate como base sólida para evoluir, não como sistema pronto para produção.
+Este é um MVP em desenvolvimento ativo: a arquitetura segue padrões conhecidos (Strategy para os LLMs, injeção de dependências entre agentes, registry com auto-discovery de tools). Já existe uma suíte de testes automatizada (pytest + SQLite em memória, veja `tests/`) e autenticação JWT nas rotas REST, mas ainda não há hardening completo de produção — trate como base sólida para evoluir.
 
 ---
 
@@ -27,7 +27,7 @@ O sistema é modular, aplicando alguns padrões de Engenharia de Software (inje�
   - _Cache/velocidade_: **Memcached** (caches rápidos, rate limits).
 - **`models/`**: _Data classes_ para tipar os dados que circulam entre as camadas.
 - **`tools/`**: Catálogo de ferramentas descobertas automaticamente pelo Registry. Inclui:
-  - Web Search (DuckDuckGo), automação do Google Calendar
+  - Web Search (DuckDuckGo)
   - SMTP Mailer e notificações via Telegram
   - Criptografia simétrica (Fernet)
   - Processamento de imagem (Pillow+OpenCV), anonimização facial e detecção de adulteração (ELA/tamper)
@@ -56,7 +56,7 @@ python3 -m venv venv
 source venv/bin/activate  # Em Mac/Linux
 # venv\Scripts\activate   # Em Windows
 
-pip install -r requeires.txt
+pip install -r requirements.txt
 ```
 
 ### 3. Variáveis de Ambiente
@@ -75,6 +75,10 @@ POSTGRES_PASSWORD=adminpassword
 POSTGRES_DB=mvp_agente
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
+
+# Autenticação (JWT) das rotas REST — gere com: openssl rand -hex 32
+JWT_SECRET_KEY=troque-por-uma-chave-secreta-aleatoria
+ACCESS_TOKEN_EXPIRE_MINUTES=60
 ```
 
 ### 4. Ligando os Motores
@@ -95,3 +99,29 @@ A arquitetura oferece dois pontos de entrada para inicialização do ecossistema
   ```bash
   python main.py
   ```
+
+### 5. Autenticação da API
+
+As rotas REST de calendário e chat (`/api/v1/calendar/*`, `/api/v1/chat/*`) exigem um token JWT.
+Os bots (Telegram/Discord) não passam por aqui — eles chamam o orquestrador diretamente em
+processo. O token é necessário apenas para quem consome a API HTTP (o front-end em `ui/` ou
+clientes externos):
+
+```bash
+# 1. Registrar um usuário e já receber o token
+curl -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"external_id": "meu-usuario", "password": "minha-senha"}'
+
+# 2. Nas próximas vezes, autenticar via login (form OAuth2: username=external_id)
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -d "username=meu-usuario&password=minha-senha"
+
+# 3. Usar o access_token retornado no header das demais chamadas
+curl http://localhost:8080/api/v1/calendar/events \
+  -H "Authorization: Bearer <access_token>"
+```
+
+## 📄 Licença
+
+Distribuído sob a licença MIT. Veja [LICENSE](LICENSE) para mais detalhes.
