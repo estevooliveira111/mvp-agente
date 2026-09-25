@@ -3,7 +3,8 @@ import asyncio
 from core.logger import logger
 from core.config import settings
 from core.agent_bootstrap import manager
-from core.identity import channel_session_id, channel_user_id
+from core.account_link import is_link_command, link_command_reply
+from core.identity import channel_user_id, conversation_session_id
 
 # Configurando Intents (necessários para ler conteúdo de mensagens no Discord moderno)
 intents = discord.Intents.default()
@@ -24,7 +25,8 @@ class MVPAgentDiscordBot(discord.Client):
         # Para fins de simplificação, processamos todas as mensagens que o bot tem acesso
         # Em produção, você poderia restringir a uma menção: if self.user.mentioned_in(message):
         
-        session_id = channel_session_id("discord", message.channel.id)
+        is_private = isinstance(message.channel, discord.DMChannel)
+        session_id = conversation_session_id("discord", message.channel.id, message.author.id, is_private)
         user_id = channel_user_id("discord", message.author.id)
         raw_text = message.content.strip()
 
@@ -34,6 +36,12 @@ class MVPAgentDiscordBot(discord.Client):
         logger.info(f"Mensagem recebida do Discord de {message.author} no canal {message.channel.id}")
 
         try:
+            if is_link_command(raw_text):
+                # Não passa pelo agente: o código não pode ir para o LLM nem para o histórico.
+                reply = await asyncio.to_thread(link_command_reply, user_id, is_private)
+                await message.channel.send(reply)
+                return
+
             # Envia a notificação de que o bot está "digitando"
             async with message.channel.typing():
                 # Processa usando o manager, rodando a função bloqueante num executor assíncrono

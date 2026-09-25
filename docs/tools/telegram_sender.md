@@ -3,6 +3,9 @@
 ## Descrição
 Envia notificações e mensagens formatadas em tempo real usando a API HTTP oficial do Telegram Bot.
 
+## Destinatários permitidos
+Só envia para os chat_ids ou @usernames listados em `TELEGRAM_ALLOWED_CHAT_IDS` no `.env`. Com a lista vazia, todo envio é recusado: qualquer pessoa que fala com o bot pode pedir um envio.
+
 ## Parâmetros
 
 | Nome | Tipo | Obrigatório | Descrição |

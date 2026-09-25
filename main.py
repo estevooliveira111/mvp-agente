@@ -2,7 +2,9 @@ import sys
 from core.logger import logger
 from core.config import settings
 from llm.factory import get_active_llm
+from memory.cache import CacheMemory
 from memory.conversation import ConversationMemory
+from memory.vector import VectorMemory
 from agents.planner import PlannerAgent
 from agents.executor import ExecutorAgent
 from agents.manager import ManagerAgent
@@ -35,7 +37,11 @@ def main():
         memory=memory,
         planner=planner,
         executor=executor,
-        tools_metadata=tools_metadata
+        tools_metadata=tools_metadata,
+        # Memória de longo prazo (ChromaDB) e cache (Memcached): opcionais, sem eles o
+        # agente segue só com o histórico recente.
+        vector_memory=VectorMemory(),
+        cache=CacheMemory(),
     )
     
     session_id = channel_session_id("cli", "local")

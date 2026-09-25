@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
+from core.account_link import LINK_COMMAND, redeem_link_code
 from core.auth import create_access_token
 from core.identity import CHANNEL_ID_SEPARATOR
 from core.security import SecurityManager
@@ -12,6 +13,12 @@ from database.database import get_db
 from database.models import User
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
+
+
+def _check_password_length(value: str) -> str:
+    if len(value.encode("utf-8")) > SecurityManager.PASSWORD_MAX_BYTES:
+        raise ValueError(f"password deve ter no máximo {SecurityManager.PASSWORD_MAX_BYTES} bytes.")
+    return value
 
 
 class RegisterRequest(BaseModel):
@@ -32,14 +39,27 @@ class RegisterRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def check_password_length(cls, value: str) -> str:
-        if len(value.encode("utf-8")) > SecurityManager.PASSWORD_MAX_BYTES:
-            raise ValueError(f"password deve ter no máximo {SecurityManager.PASSWORD_MAX_BYTES} bytes.")
-        return value
+        return _check_password_length(value)
+
+
+class LinkRequest(BaseModel):
+    code: str
+    password: str
+
+    @field_validator("password")
+    @classmethod
+    def check_password_length(cls, value: str) -> str:
+        return _check_password_length(value)
 
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class LinkResponse(TokenResponse):
+    # O usuário do canal não escolheu esse ID: devolvemos para ele saber com o que entrar.
+    external_id: str
 
 
 @router.post("/register", response_model=TokenResponse)
@@ -49,8 +69,8 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 
     # Qualquer usuário existente bloqueia o cadastro, inclusive os criados por um bot
     # sem senha: definir a senha deles aqui entregaria a conta (e as conversas) a quem
-    # soubesse o ID. Vincular uma conta de canal exige verificar a posse, o que ainda
-    # não existe.
+    # soubesse o ID. Contas de canal definem a senha por POST /link, que exige o
+    # código que o bot manda no chat privado.
     if db.query(User).filter(User.external_id == payload.external_id).first():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -99,3 +119,29 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
     access_token = create_access_token(user.external_id)
     return TokenResponse(access_token=access_token)
+
+
+@router.post("/link", response_model=LinkResponse)
+def link(payload: LinkRequest, db: Session = Depends(get_db)):
+    """
+    Define a senha de uma conta de canal (Telegram, Discord) com o código que o bot
+    enviou em resposta ao comando /vincular. Serve também para trocar a senha.
+    """
+    if db is None:
+        raise HTTPException(status_code=503, detail="Banco de dados indisponível.")
+
+    user = redeem_link_code(db, payload.code)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Código inválido ou expirado. Peça outro ao bot com {LINK_COMMAND}.",
+        )
+
+    user.hashed_password = SecurityManager.hash_password(payload.password)
+    user.password_salt = None
+    db.commit()
+
+    return LinkResponse(
+        access_token=create_access_token(user.external_id),
+        external_id=user.external_id,
+    )

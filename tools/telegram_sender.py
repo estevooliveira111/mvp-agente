@@ -2,6 +2,7 @@ import json
 import os
 import requests
 from dotenv import load_dotenv
+from core.config import settings
 
 # Carrega variáveis de ambiente (como o Bot Token) do arquivo .env
 load_dotenv()
@@ -30,6 +31,12 @@ tool_metadata = {
     }
 }
 
+def _is_allowed_chat(chat_id: str) -> bool:
+    """Confere o destino contra TELEGRAM_ALLOWED_CHAT_IDS (@usernames sem diferenciar maiúsculas)."""
+    normalized = str(chat_id).strip().lower()
+    return normalized in (item.lower() for item in settings.TELEGRAM_ALLOWED_CHAT_IDS)
+
+
 # 2. Execução: O que roda quando a IA chama a ferramenta
 def execute(**kwargs):
     """
@@ -42,6 +49,15 @@ def execute(**kwargs):
     
     if not chat_id or not text:
         return json.dumps({"status": "error", "message": "Os parâmetros 'chat_id' e 'text' são obrigatórios para enviar a notificação."})
+
+    # Qualquer pessoa que fala com o bot pode pedir um envio: sem essa trava, o bot
+    # mandaria mensagens em nome do dono para qualquer chat que o tenha adicionado.
+    if not _is_allowed_chat(chat_id):
+        return json.dumps({
+            "status": "error",
+            "message": f"Envio recusado: o chat '{chat_id}' não está autorizado. "
+                       "Só é possível enviar para os chats liberados em TELEGRAM_ALLOWED_CHAT_IDS."
+        })
         
     try:
         # Recupera o token oficial do Bot gerado pelo @BotFather

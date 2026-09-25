@@ -1,63 +1,85 @@
 # Pontos que não fazem sentido no sistema
 
-_Revisão atualizada em 2026-09-25, depois da remoção do front-end (`ui/`) e do módulo de calendário e da correção dos itens graves._
+_Revisão atualizada em 2026-09-25. Todos os itens foram tratados: os 15 da revisão anterior e as 7 pendências que dependiam de decisão. Nada disso foi commitado ainda._
 
-## Resolvidos pela remoção
+## ✅ Resolvidos pela remoção do front-end e do calendário
 
-- ~~A ferramenta de agenda não sabia quem era o usuário (gravava tudo no `user_id` 1).~~ O `calendar_manager` foi removido.
-- ~~Os lembretes não faziam nada.~~ O `core/scheduler.py` foi removido.
-- ~~O front-end pedia um `external_id` que o backend ignorava.~~ A pasta `ui/` foi removida.
-- ~~`app.py` importava `calendar` duas vezes e o prompt do Planner citava `check_availability`.~~ As duas referências foram removidas.
-- ~~`CORS_ORIGINS` faltava no `.env.exemplo`.~~ O CORS saiu junto com o front-end.
+- A ferramenta de agenda gravava tudo no `user_id` 1: o `calendar_manager` foi removido.
+- Os lembretes não faziam nada: o `core/scheduler.py` foi removido.
+- O front-end pedia um `external_id` que o backend ignorava: a pasta `ui/` foi removida.
+- As referências a `calendar` em `app.py` e a `check_availability` no prompt do Planner foram removidas, junto com o CORS, que só servia ao front-end.
 
-## 🔴 Graves: identidade e segurança
+## ✅ Graves: identidade e segurança (corrigidos)
 
-Os cinco itens abaixo foram corrigidos em 2026-09-25 e têm testes em `tests/`.
+1. **Sessão de outra pessoa:** o `POST /api/v1/chat/sessions/{session_id}/messages` confere o dono da sessão (404 se for de outro usuário) e recusa com 422 os prefixos de canal (`telegram_`, `discord_`, `cli_`).
+2. **Tomar conta criada por bot:** o `/register` recusa qualquer `external_id` existente. Os canais gravam IDs com prefixo (`telegram:123`, em `core/identity.py`), e a API não aceita `:` no `external_id`.
+3. **`file_read` lendo qualquer arquivo:** só lê dentro de `FILE_READ_BASE_DIR` (padrão `data/files`). Recusa `..`, caminho absoluto e link simbólico que saia da pasta.
+4. **Webhook do Telegram sem autenticação:** exige `TELEGRAM_WEBHOOK_SECRET` no header `X-Telegram-Bot-Api-Secret-Token`. Fora de `development`, sem o segredo, recusa tudo.
+5. **Senhas em SHA-256:** passaram para bcrypt. Senhas antigas migram no primeiro login certo.
 
-1. ~~**Dá para escrever na sessão de outra pessoa.**~~ **Corrigido.** O `POST /api/v1/chat/sessions/{session_id}/messages` agora confere o dono da sessão, como o `GET` já fazia: sessão de outro usuário responde 404. Também recusa (422) `session_id` com prefixo de canal (`telegram_`, `discord_`, `cli_`), para ninguém criar pela API a sessão de um canal antes dele.
-2. ~~**Qualquer um pode assumir uma conta criada pelos bots.**~~ **Corrigido.** O `/register` responde 409 para qualquer `external_id` que já exista, inclusive os criados por bot sem senha. Os canais passaram a gravar IDs com prefixo (`telegram:123`, `discord:456`, `cli:terminal`, em `core/identity.py`), e a API recusa `external_id` com `:`. Assim ninguém registra antes o ID de alguém que ainda vai falar com o bot.
-3. ~~**`file_read` lê qualquer arquivo do servidor.**~~ **Corrigido.** A ferramenta só lê dentro de `FILE_READ_BASE_DIR` (padrão `data/files`, fora do git). `..`, caminhos absolutos e links simbólicos que saem da pasta são recusados.
-4. ~~**Webhook do Telegram sem autenticação.**~~ **Corrigido.** O `set_webhook` envia `TELEGRAM_WEBHOOK_SECRET`, e cada update precisa trazer o mesmo valor no header `X-Telegram-Bot-Api-Secret-Token` (403 se não trouxer). Fora de `development`, sem o segredo configurado, o webhook recusa tudo.
-5. ~~**As senhas usam SHA-256 com salt.**~~ **Corrigido.** Senhas novas usam bcrypt (`SecurityManager.hash_password`). Senhas antigas continuam funcionando: no primeiro login certo, são convertidas para bcrypt e o `password_salt` é zerado.
+## ✅ Lógica do agente (corrigida)
 
-### Ainda em aberto
+6. **Erros do LLM:** os provedores (`llm/*.py`) lançam `LLMException` em vez de devolver `{"status":"error"}` ou uma frase de erro. Agora os fallbacks de `intent.py`, `reasoning.py` e `planner.py` rodam de verdade.
+7. **Atalho de saudação:** o prompt do IntentDetector manda usar exatamente `Greeting` e `SmallTalk`, os rótulos que o ReasoningEngine procura. Um "oi" volta a pular o raciocínio e o Planner.
+8. **Planner às cegas:** o Planner recebe a mensagem original, o histórico recente e a data e hora atuais, além do objetivo resumido.
+9. **Histórico perdido no restart:** a `ConversationMemory` recarrega do Postgres a sessão que não está na memória.
+10. **Webhook travando o servidor:** o Telegram roda `process_message` numa thread (`asyncio.to_thread`), como o Discord já fazia.
+11. **Erro virando fala do assistente:** com o item 6, uma falha do LLM interrompe a mensagem antes de ser salva. O canal responde com a mensagem genérica de erro, e o histórico não é poluído.
+- **Bug novo encontrado e corrigido:** o `ContextBuilder` passava objetos `Message` (com `datetime`) para o ReasoningEngine, que fazia `json.dumps` e quebrava a partir da segunda mensagem de qualquer conversa. O erro era engolido e tudo caía no Planner. Agora o histórico vai como dicionários simples.
 
-- **`email_sender` e `telegram_sender` continuam liberados para qualquer pessoa** que fale com o bot, que pode usar seu SMTP e seu bot para mandar mensagens. Falta decidir quem pode usar essas ferramentas (lista de usuários autorizados, destinatários permitidos ou desligar nos canais públicos).
-- **Não há como vincular uma conta de bot à API.** Com o item 2, um usuário do Telegram não consegue mais definir senha para ver o próprio histórico pela API. Isso exige um fluxo de verificação (ex: código enviado pelo próprio bot).
-- **Os dados antigos ficaram com os IDs sem prefixo.** Usuários e sessões gravados antes da mudança (ex: `123`) não se ligam aos novos (`telegram:123`, `telegram_123`), então o histórico antigo não aparece para eles. Se esse histórico importar, é preciso migrar o banco.
-- **Em grupos do Telegram, a sessão é do grupo:** as mensagens de todos os membros entram na mesma sessão, que pertence a quem falou primeiro.
+## ✅ Documentação e config (corrigidas)
 
-## 🟠 A lógica do agente não fecha
-
-6. **Os erros do LLM não viram exceção.** Os `generate_json` devolvem `{"status":"error"}` em vez de lançar erro, então os `except` com fallback em `intent.py` e `reasoning.py` nunca rodam. Sem o campo `decision`, o Manager cai em `direct_response` (`agents/manager.py:45`). É o contrário do fallback do ReasoningEngine, que manda para o `planner` "por segurança".
-7. **O atalho de saudação nunca dispara.** `core/cognitive/reasoning.py:22` procura `Greeting` ou `SmallTalk`, mas o prompt do IntentDetector (`core/cognitive/intent.py:32`) só dá exemplos como `Info.Query` e `Email.Send`. Na prática, um "oi" custa 3 a 4 chamadas de LLM.
-8. **O Planner trabalha às cegas:**
-   - Recebe só o `objective` resumido, não a mensagem original, então perde detalhes (destinatários, termos de busca).
-   - Não recebe o histórico da conversa.
-   - Não sabe a data de hoje, então não consegue resolver pedidos como "notícias de ontem".
-9. **O histórico se perde ao reiniciar.** O comentário em `memory/conversation.py:13` diz que as mensagens são persistidas para sobreviver a reinícios. Elas são gravadas no Postgres, mas nunca relidas: depois de um restart, o agente esquece tudo.
-10. **O webhook do Telegram trava o servidor.** `app.py:133` chama `manager.process_message`, que é bloqueante, dentro de um endpoint `async`. Enquanto o LLM responde, o servidor fica parado. O Discord já resolve isso com `to_thread`.
-11. **Mensagens de erro viram resposta do assistente.** Um texto como "Erro na comunicação com a OpenAI…" é salvo no histórico como fala do assistente.
-
-## 🟡 Documentação e config inconsistentes
-
-12. **O README promete RAG (ChromaDB) e cache (Memcached) como memória do agente,** mas `VectorMemory` e `CacheMemory` não são usados em lugar nenhum. O mesmo vale para `models/tool.py` e `SYSTEM_PROMPT_EXECUTOR` (importado, nunca usado).
-13. **`.env.exemplo` diverge de `core/config.py`:**
-    - Define `ENCRYPTION_KEY`, mas o código lê `MASTER_ENCRYPTION_KEY`, que também não é usada.
-    - `LOG_LEVEL` é ignorado.
-    - Faltam `SMTP_*`, `WEBHOOK_URL`, `ENVIRONMENT` e `OLLAMA_*`.
-14. **A factory de LLM se contradiz:**
-    - O comentário diz que o Ollama tem prioridade "antes da nuvem", mas ele é o 3º da lista.
-    - A chave de exemplo `sk-suachaveaqui…` passa na checagem `startswith("sk-")`.
-    - O Claude padrão é `claude-3-opus-20240229`, um modelo já descontinuado.
-    - O Gemini aparece como "1.5" nos comentários, mas o padrão é `gemini-2.5-flash`.
+12. **README:** agora diz que o ChromaDB e o cache do Memcached têm cliente pronto, mas ainda não estão ligados ao agente. Lista os canais reais (Telegram, Discord, CLI, API) e o Gemini. `SYSTEM_PROMPT_EXECUTOR` e `models/tool.py`, que não eram usados, foram removidos.
+13. **`.env.exemplo`:**
+    - Saíram `ENCRYPTION_KEY` e `MASTER_ENCRYPTION_KEY` (sem uso).
+    - `LOG_LEVEL` agora controla o console.
+    - Entraram `ENVIRONMENT`, `SMTP_*`, `OLLAMA_*`, `WEBHOOK_URL`, `TELEGRAM_WEBHOOK_SECRET` e `FILE_READ_BASE_DIR`.
+14. **Factory de LLM:**
+    - Os comentários descrevem a ordem real (OpenAI > Anthropic > Ollama > Gemini).
+    - As chaves de exemplo ficaram vazias, então a falsa `sk-…` não ativa mais a OpenAI.
+    - O Claude padrão passou a ser `claude-opus-5`, com `fallbacks: "default"` para recusas por segurança.
+    - A menção a "Gemini 1.5" foi corrigida.
 15. **Detalhes menores:**
-    - `Makefile:6` tem o erro de digitação `requeires.txt`, então `make install` quebra.
-    - `processed_updates_ram` (`app.py:44`) cresce sem limite.
-    - `get_current_user` quebra com erro 500 se o banco estiver fora do ar.
-    - Há identificadores em português, como `conteudo`, contrariando o `AGENTS.md`.
-    - Se o banco já tinha a tabela `events`, ela continua lá (o `create_all` não apaga tabelas). Remova com `DROP TABLE events;`.
+    - `Makefile` corrigido (`requirements.txt`).
+    - A deduplicação em memória do webhook guarda no máximo 10.000 IDs.
+    - `get_current_user` responde 503, e não 500, com o banco fora do ar.
+    - `conteudo` virou `content`.
+- **Instalação quebrada, encontrada e corrigida:** a URL do banco agora força o driver `psycopg2` (`postgresql+psycopg2://`). No SQLAlchemy 2.1, que o `pip` instala hoje, `postgresql://` procura o psycopg 3, que não está no `requirements.txt`.
 
-## Recomendação
+## ✅ Pendências decididas e resolvidas
 
-Os itens graves foram corrigidos. O próximo passo é decidir quem pode usar `email_sender` e `telegram_sender` (primeiro item de "Ainda em aberto"). Depois, vale atacar o item 6: sem ele, uma falha do LLM passa despercebida e o agente responde como se nada tivesse acontecido.
+16. **`email_sender` e `telegram_sender` liberados para qualquer pessoa:** decidido usar destinatários permitidos.
+    - `EMAIL_ALLOWED_RECIPIENTS` aceita endereços e domínios (`@empresa.com`).
+    - `TELEGRAM_ALLOWED_CHAT_IDS` aceita chat_ids e @usernames.
+    - Lista vazia = envio desligado.
+    - No e-mail, todos os destinatários precisam estar liberados, e quebras de linha no campo são recusadas (evita injetar `Bcc:`).
+17. **Vincular conta de bot à API:** o usuário manda `/vincular` ao bot em conversa privada e recebe um código de uso único, válido por 10 minutos (só o hash fica no banco, tabela `account_link_codes`). Com ele, `POST /api/v1/auth/link` define a senha e devolve o token e o `external_id` (ex: `telegram:123`). O mesmo fluxo serve para trocar a senha. Em grupo, o bot não manda o código. O comando não passa pelo agente, então o código não vai para o LLM nem para o histórico.
+18. **Dados antigos sem prefixo:** o script `python -m database.migrations.prefix_channel_ids` converte os IDs (`123` → `telegram:123`, `user_terminal` → `cli:terminal`, sessão `123` → `telegram_123`, `sessao_cli_local` → `cli_local`).
+    - O canal de cada usuário numérico é deduzido pelas sessões dele. Os casos sem como decidir são pulados e aparecem no relatório.
+    - Se o ID novo já existir, os dados são juntados.
+    - Sem `--apply`, o script só mostra o que faria.
+19. **Sessão de grupo do Telegram:** em grupo, cada membro tem a própria sessão (`telegram_<grupo>_<usuário>`). O Discord segue a mesma regra nos canais de servidor. Em conversa privada, nada muda.
+20. **Tabela `events` órfã:** o mesmo script remove com `--drop-events`.
+21. **Dependências sem versão:** `requirements.txt` e `requirements-dev.txt` têm versões fixas, as mesmas testadas numa instalação limpa. A imagem do ChromaDB no `docker-compose.yml` foi fixada na versão do cliente (`1.5.9`).
+22. **RAG e cache:** decidido ligar os dois ao agente.
+    - **ChromaDB:** cada troca (mensagem + resposta) vira uma lembrança com o `user_id`. A cada mensagem, o `ContextBuilder` busca as 3 lembranças mais parecidas **do mesmo usuário** e descarta as pouco relevantes. Elas vão para o Planner e para a resposta final.
+    - Os embeddings são gerados no próprio processo (modelo `all-MiniLM-L6-v2`, ~80 MB baixados no primeiro uso), então funcionam com qualquer LLM.
+    - **Memcached:** guarda por 1 hora a intenção detectada de cada texto. Também faz a deduplicação do webhook, agora com `add` atômico.
+    - Os dois são opcionais. Fora do ar, o agente segue sem eles, e o ChromaDB só tenta reconectar depois de 60s.
+    - `models/memory.py`, que não era usado, foi removido.
+
+## Para aplicar num ambiente existente
+
+- Reinstale as dependências (`pip install -r requirements.txt`): as versões mudaram.
+- Preencha `EMAIL_ALLOWED_RECIPIENTS` e `TELEGRAM_ALLOWED_CHAT_IDS` no `.env`. Sem elas, as ferramentas de envio recusam tudo.
+- Se o banco tem dados antigos, rode `python -m database.migrations.prefix_channel_ids --drop-events` para conferir e depois repita com `--apply`.
+- A tabela `account_link_codes` é criada sozinha na subida da API (`create_all`).
+
+## Como validar
+
+Os testes (`tests/`, 74 no total) passam num ambiente Python 3.12 limpo, instalado com as versões fixas. Os das pendências resolvidas nesta rodada estão em `test_account_link.py`, `test_sender_allowlist.py`, `test_long_term_memory.py` e `test_migrate_channel_ids.py`.
+
+Também foram conferidos fora dos testes:
+- O RAG contra um ChromaDB real: cada usuário recupera só as próprias lembranças.
+- O cache contra o Memcached do `docker-compose`, inclusive com ele fora do ar.
+- O script de migração em modo simulação contra o Postgres local.

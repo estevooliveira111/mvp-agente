@@ -5,11 +5,11 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from core.logger import logger
 from core.config import settings
-from core.agent_bootstrap import manager
-from core.identity import channel_session_id, channel_user_id
+from core.agent_bootstrap import cache, manager
+from core.account_link import is_link_command, link_command_reply
+from core.identity import channel_user_id, conversation_session_id
 
 from telegram import Update, Bot
-from pymemcache.client.base import Client
 import sys
 import os
 
@@ -38,15 +38,11 @@ except Exception as e:
     logger.error(f"Não foi possível carregar rotas de autenticação: {e}")
 
 # ==========================================
-# Instância de Cache para Deduplicação
+# Deduplicação de updates
 # ==========================================
-try:
-    cache = Client((settings.MEMCACHED_HOST, settings.MEMCACHED_PORT), connect_timeout=1, timeout=1)
-except Exception:
-    cache = None
-
-# Fallback de memória caso Memcached não conecte. Limitado: guarda só os últimos
-# PROCESSED_UPDATES_MAX update_ids (o Telegram só reenvia updates recentes).
+# O Memcached (cache do agent_bootstrap) é o principal. Se ele não conectar, usa a memória
+# do processo, limitada aos últimos PROCESSED_UPDATES_MAX update_ids (o Telegram só
+# reenvia updates recentes).
 PROCESSED_UPDATES_MAX = 10000
 processed_updates_ram = OrderedDict()
 
@@ -132,20 +128,14 @@ async def telegram_webhook(request: Request):
         # ==========================================
         # Deduplicação (Prevenção de Clones e Loops)
         # ==========================================
-        if cache:
-            try:
-                if cache.get(f"telegram_update_{update_id}"):
-                    logger.warning(f"Webhook Bloqueado: Update {update_id} já foi processado (Memcached).")
-                    return {"status": "success", "message": "Already processed"}
-                # Salva no cache com TTL de 2 horas (7200s)
-                cache.set(f"telegram_update_{update_id}", "1", expire=7200)
-            except Exception as e:
-                logger.error(f"Erro no Memcached: {e}. Usando RAM.")
-                if already_processed_in_ram(update_id):
-                    return {"status": "success", "message": "Already processed"}
-        else:
-            if already_processed_in_ram(update_id):
-                return {"status": "success", "message": "Already processed"}
+        # 'add' é atômico: se dois reenvios chegarem juntos, só um passa. TTL de 2 horas.
+        stored = cache.add(f"telegram_update_{update_id}", "1", ttl_seconds=7200)
+        if stored is False:
+            logger.warning(f"Webhook Bloqueado: Update {update_id} já foi processado (Memcached).")
+            return {"status": "success", "message": "Already processed"}
+        if stored is None and already_processed_in_ram(update_id):
+            # Memcached fora do ar: usa a memória do processo.
+            return {"status": "success", "message": "Already processed"}
             
         # ==========================================
         # Processamento e Resposta
@@ -154,20 +144,26 @@ async def telegram_webhook(request: Request):
             return {"status": "ignored", "reason": "No valid text message"}
             
         chat_id = str(update.message.chat_id)
-        user_id = channel_user_id("telegram", update.message.from_user.id)
+        is_private = update.message.chat.type == "private"
+        telegram_user_id = update.message.from_user.id
+        user_id = channel_user_id("telegram", telegram_user_id)
         user_message = update.message.text.strip()
         
         logger.info(f"[Webhook] Mensagem recebida de {user_id}: {user_message}")
         
         try:
-            # process_message é bloqueante (várias chamadas de LLM): roda numa thread
-            # para não travar o event loop e as outras requisições.
-            agent_response = await asyncio.to_thread(
-                manager.process_message,
-                session_id=channel_session_id("telegram", chat_id),
-                user_id=user_id,
-                raw_message=user_message
-            )
+            if is_link_command(user_message):
+                # Não passa pelo agente: o código não pode ir para o LLM nem para o histórico.
+                agent_response = await asyncio.to_thread(link_command_reply, user_id, is_private)
+            else:
+                # process_message é bloqueante (várias chamadas de LLM): roda numa thread
+                # para não travar o event loop e as outras requisições.
+                agent_response = await asyncio.to_thread(
+                    manager.process_message,
+                    session_id=conversation_session_id("telegram", chat_id, telegram_user_id, is_private),
+                    user_id=user_id,
+                    raw_message=user_message
+                )
         except Exception as e:
             logger.error(f"Falha interna do Agente: {e}")
             agent_response = "Ops, meu cérebro deu um erro temporário processando sua mensagem! ⚠️"

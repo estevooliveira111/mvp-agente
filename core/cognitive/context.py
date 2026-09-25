@@ -6,12 +6,14 @@ class ContextBuilder:
     Componente responsável por compilar o contexto enviado ao LLM.
     Inclui:
     - Histórico da conversa
+    - Lembranças de conversas anteriores do mesmo usuário (RAG, ChromaDB)
     - Informações do usuário / permissões
     - Estado atual e regras do sistema
     """
     
-    def __init__(self, memory_client=None):
+    def __init__(self, memory_client=None, vector_memory=None):
         self.memory = memory_client
+        self.vector_memory = vector_memory
         
     def build_context(self, user_id: str, session_id: str, intent: Dict[str, Any], raw_message: str) -> Dict[str, Any]:
         logger.info("[ContextBuilder] Montando contexto para a execução...")
@@ -26,7 +28,11 @@ class ContextBuilder:
                 for msg in self.memory.get_recent_history(session_id)
             ]
             
-        # No futuro, buscaremos informações de longo prazo (ChromaDB) e do banco (Postgres)
+        # Memória de longo prazo: trocas passadas deste usuário parecidas com a mensagem atual.
+        long_term_memories = []
+        if self.vector_memory:
+            long_term_memories = self.vector_memory.recall(user_id=user_id, query=raw_message)
+
         user_info = {
             "id": user_id,
             "role": "user",
@@ -38,6 +44,7 @@ class ContextBuilder:
             "user_info": user_info,
             "session_id": session_id,
             "recent_history": recent_history,
+            "long_term_memories": long_term_memories,
             "current_message": raw_message,
             "detected_intent": intent
         }

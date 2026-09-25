@@ -3,6 +3,9 @@
 ## Descrição
 Envia e-mails automatizados usando o protocolo SMTP com estruturação MIME. Permite envio de relatórios e mensagens em texto ou HTML, com opção de criptografar o conteúdo antes de enviar.
 
+## Destinatários permitidos
+Só envia para os endereços ou domínios (`@empresa.com`) listados em `EMAIL_ALLOWED_RECIPIENTS` no `.env`. Com a lista vazia, todo envio é recusado: qualquer pessoa que fala com o bot pode pedir um envio.
+
 ## Parâmetros
 
 | Nome | Tipo | Obrigatório | Descrição |

@@ -3,8 +3,10 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import getaddresses
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
+from core.config import settings
 
 # Carrega variáveis de ambiente (como credenciais de e-mail) do arquivo .env
 load_dotenv()
@@ -41,6 +43,27 @@ tool_metadata = {
     }
 }
 
+def _is_allowed_recipient(address: str) -> bool:
+    """Confere o endereço contra EMAIL_ALLOWED_RECIPIENTS (endereços ou '@dominio')."""
+    address = address.lower()
+    domain = "@" + address.rsplit("@", 1)[-1]
+    allowed = [item.lower() for item in settings.EMAIL_ALLOWED_RECIPIENTS]
+    return address in allowed or domain in allowed
+
+
+def _blocked_recipients(to_email: str):
+    """
+    Devolve os destinatários fora da lista permitida. O campo pode trazer vários
+    endereços separados por vírgula, e todos precisam estar liberados.
+    """
+    if "\r" in to_email or "\n" in to_email:
+        return [to_email]
+    addresses = [addr for _, addr in getaddresses([to_email]) if addr]
+    if not addresses:
+        return [to_email]
+    return [addr for addr in addresses if "@" not in addr or not _is_allowed_recipient(addr)]
+
+
 # 2. Execução: O que roda quando a IA chama a ferramenta
 def execute(**kwargs):
     """
@@ -55,6 +78,16 @@ def execute(**kwargs):
     
     if not all([to_email, subject, body]):
         return json.dumps({"status": "error", "message": "Os parâmetros 'to_email', 'subject' e 'body' são obrigatórios."})
+
+    # Qualquer pessoa que fala com o bot pode pedir um e-mail: sem essa trava, o SMTP
+    # do dono serviria para mandar spam ou phishing para qualquer endereço.
+    blocked = _blocked_recipients(to_email)
+    if blocked:
+        return json.dumps({
+            "status": "error",
+            "message": f"Envio recusado: destinatário não autorizado ({', '.join(blocked)}). "
+                       "Só é possível enviar para os endereços liberados em EMAIL_ALLOWED_RECIPIENTS."
+        })
         
     try:
         # Configurações do SMTP buscando do .env para segurança

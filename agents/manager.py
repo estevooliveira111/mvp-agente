@@ -13,16 +13,28 @@ class ManagerAgent:
     """
     O Orquestrador (Maestro) atualizado com a Camada Cognitiva (Reasoning Engine).
     """
-    def __init__(self, llm_client, memory: ConversationMemory, planner: PlannerAgent, executor: ExecutorAgent, tools_metadata: list = None):
+    def __init__(
+        self,
+        llm_client,
+        memory: ConversationMemory,
+        planner: PlannerAgent,
+        executor: ExecutorAgent,
+        tools_metadata: list = None,
+        vector_memory=None,
+        cache=None,
+    ):
         self.llm = llm_client
         self.memory = memory
         self.planner = planner
         self.executor = executor
         self.tools_metadata = tools_metadata or []
+        # Memória de longo prazo (ChromaDB) e cache (Memcached). Opcionais: sem eles,
+        # o agente funciona só com o histórico recente.
+        self.vector_memory = vector_memory
         
         # Inicializa a camada cognitiva
-        self.intent_detector = IntentDetector(llm_client=self.llm)
-        self.context_builder = ContextBuilder(memory_client=self.memory)
+        self.intent_detector = IntentDetector(llm_client=self.llm, cache=cache)
+        self.context_builder = ContextBuilder(memory_client=self.memory, vector_memory=vector_memory)
         self.reasoning_engine = ReasoningEngine(llm_client=self.llm)
         
     def process_message(self, session_id: str, user_id: str, raw_message: str) -> str:
@@ -46,6 +58,7 @@ class ManagerAgent:
         
         history_objects = self.memory.get_recent_history(session_id=session_id)
         history = [{"role": msg.role, "content": msg.content} for msg in history_objects]
+        long_term_memories = context_package.get("long_term_memories", [])
         
         results_buffer = []
         
@@ -59,6 +72,7 @@ class ManagerAgent:
                 available_tools_metadata=self.tools_metadata,
                 raw_message=raw_message,
                 history=history,
+                memories=long_term_memories,
             )
             
             for step in plan.get("steps", []):
@@ -73,11 +87,15 @@ class ManagerAgent:
         
         # 5. Injeção de Contexto para a Geração Final
         context_str = "\n".join(results_buffer) if results_buffer else "Nenhuma ferramenta extra foi acionada."
+        memories_str = "\n".join(long_term_memories) if long_term_memories else "Nenhuma lembrança relevante."
         
         final_prompt = f"""
         MENSAGEM ATUAL DO USUÁRIO: "{raw_message}"
         
         INTENÇÃO DETECTADA: {intent_data.get("primary_intent")} (Emoção: {intent_data.get("emotion")})
+
+        LEMBRANÇAS DE CONVERSAS ANTERIORES COM ESTE USUÁRIO (use só se forem relevantes):
+        {memories_str}
         
         DADOS OBTIDOS PELAS FERRAMENTAS DE APOIO NESTE TURNO (Considere como verdadeiros):
         {context_str}
@@ -97,5 +115,9 @@ class ManagerAgent:
         # 6. Salva as duas pontas da conversa na memória
         self.memory.add_message(session_id=session_id, user_id=user_id, message=Message(role="user", content=raw_message))
         self.memory.add_message(session_id=session_id, user_id=user_id, message=Message(role="assistant", content=final_response))
+        if self.vector_memory:
+            self.vector_memory.remember_exchange(
+                user_id=user_id, session_id=session_id, user_message=raw_message, assistant_message=final_response
+            )
         
         return final_response

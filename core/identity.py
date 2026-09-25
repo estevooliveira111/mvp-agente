@@ -21,3 +21,15 @@ def channel_user_id(channel: str, raw_id) -> str:
 def channel_session_id(channel: str, raw_id) -> str:
     """Ex: channel_session_id('telegram', 123) -> 'telegram_123'."""
     return f"{channel}_{raw_id}"
+
+
+def conversation_session_id(channel: str, chat_id, user_raw_id, is_private: bool) -> str:
+    """
+    Sessão de uma conversa de canal. Em chat privado, é a do chat ('telegram_123').
+    Em grupo, cada membro tem a sua ('telegram_-100_123'): com uma sessão só para o grupo,
+    o histórico de todos ficava no nome de quem falou primeiro, e o agente misturava as
+    conversas de pessoas diferentes.
+    """
+    if is_private:
+        return channel_session_id(channel, chat_id)
+    return channel_session_id(channel, f"{chat_id}_{user_raw_id}")

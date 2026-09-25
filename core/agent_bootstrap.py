@@ -6,7 +6,9 @@ de API (ex: api/routes/chat.py) compartilhem a mesma instância do ManagerAgent
 e, portanto, o mesmo estado de memória de conversa.
 """
 from llm.factory import get_active_llm
+from memory.cache import CacheMemory
 from memory.conversation import ConversationMemory
+from memory.vector import VectorMemory
 from agents.planner import PlannerAgent
 from agents.executor import ExecutorAgent
 from agents.manager import ManagerAgent
@@ -14,9 +16,19 @@ from tools.registry import load_all_tools
 
 llm = get_active_llm()
 memory = ConversationMemory()
+vector_memory = VectorMemory()
+cache = CacheMemory()
 planner = PlannerAgent(llm_client=llm)
 
 tools_registry, tools_metadata = load_all_tools()
 executor = ExecutorAgent(tools_registry=tools_registry)
 
-manager = ManagerAgent(llm, memory, planner, executor, tools_metadata=tools_metadata)
+manager = ManagerAgent(
+    llm,
+    memory,
+    planner,
+    executor,
+    tools_metadata=tools_metadata,
+    vector_memory=vector_memory,
+    cache=cache,
+)

@@ -24,6 +24,21 @@ class User(Base):
     # Relacionamento com as sessões de chat desse usuário
     sessions = relationship("ChatSessionDB", back_populates="user")
 
+class AccountLinkCode(Base):
+    """
+    Código de uso único que um usuário de canal pede ao bot (/vincular) para definir
+    uma senha e entrar pela API. Só o hash fica gravado.
+    """
+    __tablename__ = "account_link_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code_hash = Column(String, unique=True, index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    user = relationship("User")
+
 class ChatSessionDB(Base):
     """Tabela que agrupa mensagens de uma mesma conversa (Session)."""
     __tablename__ = "chat_sessions"

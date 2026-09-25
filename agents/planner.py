@@ -19,11 +19,13 @@ class PlannerAgent:
         available_tools_metadata: list,
         raw_message: Optional[str] = None,
         history: Optional[List[Dict[str, str]]] = None,
+        memories: Optional[List[str]] = None,
     ) -> dict:
         """
         Pede ao LLM para estruturar como resolver o objetivo usando as ferramentas fornecidas.
         Recebe também a mensagem original e o histórico: o objetivo é um resumo e perde
         detalhes (destinatários, termos de busca, referências a mensagens anteriores).
+        As lembranças (memória de longo prazo) trazem trocas antigas do mesmo usuário.
         Retorna um dicionário (JSON parseado).
         """
         logger.info(f"[Planner Agent] Criando plano para o objetivo: {objective}")
@@ -31,6 +33,7 @@ class PlannerAgent:
         # 1. Empacota todos os manuais de instrução das ferramentas num grande JSON
         tools_str = json.dumps(available_tools_metadata, indent=2, ensure_ascii=False)
         history_str = "\n".join(f"{m['role']}: {m['content']}" for m in (history or [])) or "(sem histórico)"
+        memories_str = "\n".join(memories or []) or "(nenhuma)"
         # Sem a data atual, o LLM não resolve 'ontem', 'amanhã', 'semana passada'.
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M (%A)")
         
@@ -40,6 +43,9 @@ class PlannerAgent:
 
         HISTÓRICO RECENTE DA CONVERSA:
         {history_str}
+
+        LEMBRANÇAS DE CONVERSAS ANTERIORES:
+        {memories_str}
 
         MENSAGEM ORIGINAL DO USUÁRIO: "{raw_message or objective}"
 

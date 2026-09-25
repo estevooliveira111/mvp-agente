@@ -61,7 +61,8 @@ services:
   # Banco de Dados Vetorial (ChromaDB)
   # ==========================================
   chromadb:
-    image: chromadb/chroma:latest
+    # Mesma versão do pacote chromadb no requirements.txt (cliente e servidor precisam bater).
+    image: chromadb/chroma:1.5.9
     container_name: mvp_chromadb
     restart: always
     environment:

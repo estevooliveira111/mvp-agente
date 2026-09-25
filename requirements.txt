@@ -1,21 +1,24 @@
-requests
-google-generativeai
-python-dotenv
-qrcode
-opencv-python
-Pillow
-librosa
-cryptography
-pymemcache
-chromadb
-psycopg2-binary
-sqlalchemy
-openai
-anthropic
-fastapi
-uvicorn
-python-telegram-bot
-discord.py
-python-jose[cryptography]
-python-multipart
-bcrypt
+# Versões fixas: sem elas, uma instalação nova pega a última versão de tudo e pode
+# quebrar (como aconteceu com o SQLAlchemy 2.1). Para atualizar, suba a versão aqui
+# e rode os testes.
+requests==2.34.2
+google-generativeai==0.8.6
+python-dotenv==1.2.3
+qrcode==8.2
+opencv-python==5.0.0.93
+Pillow==12.3.0
+librosa==1.0.0
+cryptography==50.0.1
+pymemcache==4.0.0
+chromadb==1.5.9
+psycopg2-binary==2.9.13
+sqlalchemy==2.1.1
+openai==3.19.2
+anthropic==1.8.0
+fastapi==0.141.1
+uvicorn==0.54.0
+python-telegram-bot==22.8
+discord.py==2.7.1
+python-jose[cryptography]==3.5.0
+python-multipart==0.0.32
+bcrypt==5.0.0

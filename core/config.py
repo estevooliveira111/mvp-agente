@@ -5,6 +5,11 @@ from core.exceptions import ConfigurationException
 # Carrega as variáveis de ambiente na inicialização do módulo Core
 load_dotenv()
 
+
+def _csv_env(name: str) -> list:
+    """Lê uma variável no formato 'a, b, c' como lista, ignorando itens vazios."""
+    return [item.strip() for item in os.getenv(name, "").split(",") if item.strip()]
+
 class Settings:
     """
     Centraliza todas as configurações do sistema.
@@ -29,6 +34,13 @@ class Settings:
     SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
     SMTP_USER = os.getenv("SMTP_USER", "")
     SMTP_PASS = os.getenv("SMTP_PASS", "")
+
+    # Destinatários que as ferramentas de envio aceitam. Qualquer pessoa que fala com o
+    # bot pode pedir um envio, então fora dessas listas nada sai. Vazia = envio desligado.
+    # E-mail: endereços completos ou domínios com '@' (ex: 'eu@exemplo.com, @minhaempresa.com').
+    EMAIL_ALLOWED_RECIPIENTS = _csv_env("EMAIL_ALLOWED_RECIPIENTS")
+    # Telegram: chat_ids numéricos ou @usernames de canal.
+    TELEGRAM_ALLOWED_CHAT_IDS = _csv_env("TELEGRAM_ALLOWED_CHAT_IDS")
     
     # AI Models
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")

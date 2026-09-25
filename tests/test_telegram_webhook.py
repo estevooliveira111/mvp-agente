@@ -37,3 +37,16 @@ def test_rejects_everything_without_secret_outside_development(webhook_client, m
     response = webhook_client.post("/webhook/telegram", json={"update_id": 1})
 
     assert response.status_code == 403
+
+
+def test_ram_dedup_is_bounded(monkeypatch):
+    monkeypatch.setattr(app_module, "PROCESSED_UPDATES_MAX", 3)
+    app_module.processed_updates_ram.clear()
+
+    for update_id in ["1", "2", "3", "4"]:
+        assert app_module.already_processed_in_ram(update_id) is False
+
+    assert app_module.already_processed_in_ram("4") is True
+    assert len(app_module.processed_updates_ram) == 3
+    # O mais antigo saiu da janela.
+    assert "1" not in app_module.processed_updates_ram
