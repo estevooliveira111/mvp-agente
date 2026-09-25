@@ -1,3 +1,4 @@
+from core.formatting import strip_markdown
 from core.logger import logger
 from memory.conversation import ConversationMemory
 from agents.planner import PlannerAgent
@@ -28,6 +29,9 @@ class ManagerAgent:
         self.planner = planner
         self.executor = executor
         self.tools_metadata = tools_metadata or []
+        # Lista das ferramentas para a resposta final. Sem ela, o LLM não sabe o que o
+        # agente faz de verdade e responde "o que você sabe fazer?" com generalidades.
+        self.capabilities_str = self._describe_capabilities(self.tools_metadata)
         # Memória de longo prazo (ChromaDB) e cache (Memcached). Opcionais: sem eles,
         # o agente funciona só com o histórico recente.
         self.vector_memory = vector_memory
@@ -37,6 +41,15 @@ class ManagerAgent:
         self.context_builder = ContextBuilder(memory_client=self.memory, vector_memory=vector_memory)
         self.reasoning_engine = ReasoningEngine(llm_client=self.llm)
         
+    @staticmethod
+    def _describe_capabilities(tools_metadata: list) -> str:
+        lines = [
+            f"- {tool.get('name')}: {tool.get('description', '')}"
+            for tool in tools_metadata
+            if tool.get("name")
+        ]
+        return "\n".join(lines) or "- Nenhuma ferramenta carregada: só conversar e responder perguntas."
+
     def process_message(self, session_id: str, user_id: str, raw_message: str) -> str:
         """Fluxo de vida principal de uma interação com a nova arquitetura cognitiva."""
         logger.info(f"[Manager Agent] Processando nova mensagem na sessão {session_id} do usuário {user_id}")
@@ -94,23 +107,28 @@ class ManagerAgent:
         
         INTENÇÃO DETECTADA: {intent_data.get("primary_intent")} (Emoção: {intent_data.get("emotion")})
 
+        O QUE VOCÊ CONSEGUE FAZER (ferramentas disponíveis; descreva-as em linguagem simples, sem os nomes técnicos):
+        {self.capabilities_str}
+        Observação: e-mails e mensagens do Telegram só podem ir para destinatários liberados pelo dono do sistema.
+
         LEMBRANÇAS DE CONVERSAS ANTERIORES COM ESTE USUÁRIO (use só se forem relevantes):
         {memories_str}
         
         DADOS OBTIDOS PELAS FERRAMENTAS DE APOIO NESTE TURNO (Considere como verdadeiros):
         {context_str}
         
-        Utilizando os dados acima (se houverem) e o histórico da conversa, forneça sua resposta final e polida para o usuário.
-        Se houve erros na execução da ferramenta, avise o usuário educadamente.
+        Utilizando os dados acima (se houverem) e o histórico da conversa, responda ao usuário seguindo as regras do sistema
+        (texto simples sem Markdown, sem falar do funcionamento interno, sem frases genéricas).
+        Se houve erros na execução da ferramenta, avise o usuário.
         """
         
         logger.debug("[Manager Agent] Invocando LLM para síntese final da resposta...")
         
-        final_response = self.llm.generate_text(
+        final_response = strip_markdown(self.llm.generate_text(
             prompt=final_prompt,
             system_prompt=SYSTEM_PROMPT_MANAGER,
             history=history
-        )
+        ))
         
         # 6. Salva as duas pontas da conversa na memória
         self.memory.add_message(session_id=session_id, user_id=user_id, message=Message(role="user", content=raw_message))
