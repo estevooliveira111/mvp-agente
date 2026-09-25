@@ -96,6 +96,17 @@ A arquitetura oferece dois pontos de entrada para inicialização do ecossistema
 
   _(Acessível localmente em `http://0.0.0.0:8080`)_
 
+- **Modo Web Server + ngrok (Telegram em desenvolvimento)**
+  O Telegram só entrega mensagens numa URL pública. Com o [ngrok](https://ngrok.com/download) instalado e autenticado (`ngrok config add-authtoken <token>`) e `WEBHOOK_URL` vazia no `.env`:
+
+  ```bash
+  make dev
+  ```
+
+  Isso sobe o ngrok em segundo plano e a API em seguida. Na subida, a API pergunta ao ngrok (API local em `http://localhost:4040`) qual é a URL pública e registra o webhook do Telegram com ela, então não é preciso copiar a URL a cada reinício. Ctrl+C encerra os dois, e o log do ngrok fica em `logs/ngrok.log`.
+  Com um domínio fixo do ngrok: `make dev NGROK_DOMAIN=meu-app.ngrok-free.app`. Para rodar o ngrok num terminal separado, use `make ngrok` e depois `make api`.
+  Em produção, defina `WEBHOOK_URL` com a URL real: nesse caso o ngrok não é consultado.
+
 - **Modo CLI / Teste Interativo**
   Para testar o fluxo Multi-Agent localmente. Simula uma interface de terminal para você conversar diretamente com o orquestrador.
   ```bash

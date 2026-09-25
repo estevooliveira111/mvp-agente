@@ -25,6 +25,10 @@ class Settings:
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
     DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "")
     WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
+    # Porta em que a API (app.py) escuta.
+    API_PORT = int(os.getenv("API_PORT", 8080))
+    # Com WEBHOOK_URL vazia, a API pergunta ao ngrok (API local dele) qual é a URL pública.
+    NGROK_API_URL = os.getenv("NGROK_API_URL", "http://localhost:4040")
     # Segredo enviado ao Telegram no set_webhook e conferido em cada update recebido.
     # Fora de 'development', sem ele o endpoint /webhook/telegram recusa tudo.
     TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")

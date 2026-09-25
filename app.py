@@ -8,6 +8,7 @@ from core.config import settings
 from core.agent_bootstrap import cache, manager
 from core.account_link import is_link_command, link_command_reply
 from core.identity import channel_user_id, conversation_session_id
+from core.ngrok import discover_public_url
 
 from telegram import Update, Bot
 import sys
@@ -74,10 +75,19 @@ async def startup_event():
     logger.info("Iniciando bot do Discord...")
     start_discord_bot_background()
 
-    if settings.TELEGRAM_BOT_TOKEN and settings.WEBHOOK_URL:
+    public_url = settings.WEBHOOK_URL
+    if settings.TELEGRAM_BOT_TOKEN and not public_url:
+        # Sem WEBHOOK_URL fixa, usa o túnel do ngrok (ex: 'make dev'), se houver um.
+        public_url = await asyncio.to_thread(
+            discover_public_url, settings.NGROK_API_URL, settings.API_PORT
+        )
+        if public_url:
+            logger.info(f"🌐 URL pública do ngrok detectada: {public_url}")
+
+    if settings.TELEGRAM_BOT_TOKEN and public_url:
         try:
             async with Bot(token=settings.TELEGRAM_BOT_TOKEN) as bot:
-                webhook_url = f"{settings.WEBHOOK_URL.rstrip('/')}/webhook/telegram"
+                webhook_url = f"{public_url.rstrip('/')}/webhook/telegram"
                 # O Telegram devolve esse segredo no header de cada update (ver telegram_webhook).
                 await bot.set_webhook(
                     url=webhook_url,
@@ -177,4 +187,4 @@ async def telegram_webhook(request: Request):
         return {"status": "success", "agent_processed": True}
 
 if __name__ == "__main__":
-    uvicorn.run("app:app", host="0.0.0.0", port=8080, reload=True)
+    uvicorn.run("app:app", host="0.0.0.0", port=settings.API_PORT, reload=True)
