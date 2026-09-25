@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from core.agent_bootstrap import manager
 from core.auth import get_current_user
+from core.identity import RESERVED_SESSION_PREFIXES
 from core.logger import logger
 from database.chat_repository import list_messages_for_session, list_sessions_for_user
 from database.database import get_db
@@ -71,7 +72,7 @@ def get_session_messages(
     session = db.query(ChatSessionDB).filter(ChatSessionDB.session_id == session_id).first()
 
     # Sessão nova (ainda sem mensagens no banco) retorna lista vazia, não 404 —
-    # o front-end usa isso para abrir uma conversa que o usuário acabou de iniciar.
+    # o cliente usa isso para abrir uma conversa que o usuário acabou de iniciar.
     if not session:
         return []
 
@@ -96,13 +97,28 @@ class SendMessageResponse(BaseModel):
 def send_message(
     session_id: str,
     payload: SendMessageRequest,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     Envia uma mensagem em linguagem natural para o agente (mesmo fluxo do Telegram)
     e devolve a resposta já sintetizada. O agente decide sozinho quais ferramentas
-    acionar (agenda, e-mail, busca, etc) — o front-end não escolhe uma tool.
+    acionar (e-mail, busca, etc) — o cliente não escolhe uma tool.
     """
+    if db is None:
+        raise HTTPException(status_code=503, detail="Banco de dados indisponível.")
+
+    # Sessões dos canais (ex: 'telegram_123') nunca pertencem a um usuário da API.
+    # Bloquear o prefixo impede criar a sessão antes do canal e depois ler as mensagens dele.
+    if session_id.startswith(RESERVED_SESSION_PREFIXES):
+        raise HTTPException(status_code=422, detail="session_id usa um prefixo reservado aos canais.")
+
+    # Mesma regra do GET: sessão de outro usuário é tratada como inexistente. Sem isso,
+    # o agente carregaria o histórico dessa pessoa e gravaria mensagens no banco dela.
+    session = db.query(ChatSessionDB).filter(ChatSessionDB.session_id == session_id).first()
+    if session and session.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada.")
+
     try:
         reply = manager.process_message(
             session_id=session_id,

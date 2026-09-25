@@ -1,5 +1,6 @@
 import hashlib
 import secrets
+import bcrypt
 from cryptography.fernet import Fernet
 from core.exceptions import SecurityException
 
@@ -47,3 +48,23 @@ class SecurityManager:
         """Verifica se um texto em claro corresponde ao hash armazenado usando seu respectivo salt."""
         computed = hashlib.sha256((text + salt).encode('utf-8')).hexdigest()
         return secrets.compare_digest(computed, expected_hash)
+
+    # bcrypt ignora (ou recusa, nas versões novas) tudo que passa de 72 bytes.
+    PASSWORD_MAX_BYTES = 72
+
+    @staticmethod
+    def hash_password(password: str) -> str:
+        """
+        Gera o hash de uma senha com bcrypt (lento de propósito, com salt embutido).
+        Não use hash_sensitive_data para senhas: SHA-256 é rápido demais contra força bruta.
+        """
+        return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+    @staticmethod
+    def verify_password(password: str, hashed_password: str) -> bool:
+        """Confere uma senha em claro contra um hash bcrypt gerado por hash_password."""
+        try:
+            return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
+        except ValueError:
+            # Hash malformado ou senha acima do limite do bcrypt.
+            return False

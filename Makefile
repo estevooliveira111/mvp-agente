@@ -3,7 +3,7 @@
 # Instala as dependências do projeto
 install:
 	venv/bin/python -m pip install --upgrade pip
-	venv/bin/python -m pip install -r requeires.txt
+	venv/bin/python -m pip install -r requirements.txt
 
 # Roda o servidor Webhook (FastAPI) para o Telegram/WhatsApp
 api:

@@ -1,6 +1,5 @@
 import json
 from core.logger import logger
-from agents.prompts import SYSTEM_PROMPT_EXECUTOR
 
 class ExecutorAgent:
     """

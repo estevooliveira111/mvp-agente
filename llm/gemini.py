@@ -2,12 +2,13 @@ import os
 import json
 from typing import List, Dict, Optional
 from llm.base import BaseLLM
+from core.exceptions import LLMException
 from core.logger import logger
 import google.generativeai as genai
 
 class GeminiLLM(BaseLLM):
     """
-    Integração oficial com a API do Google Gemini (Família Gemini 1.5 Pro / Flash).
+    Integração oficial com a API do Google Gemini (padrão: gemini-2.5-flash).
     Utiliza o SDK oficial `google-generativeai`.
     """
     
@@ -45,7 +46,7 @@ class GeminiLLM(BaseLLM):
             return response.text
         except Exception as e:
             logger.error(f"[GeminiLLM] Falha na geração de texto: {e}")
-            return f"Erro na comunicação com o Gemini: {e}"
+            raise LLMException(f"Falha na comunicação com o Gemini: {e}") from e
         
     def generate_json(self, prompt: str, system_prompt: Optional[str] = None) -> dict:
         logger.info(f"[GeminiLLM] Forçando geração de JSON (application/json) no {self.model}")
@@ -59,7 +60,7 @@ class GeminiLLM(BaseLLM):
             
             contents = self._build_messages(prompt, None)
             
-            # O Gemini 1.5 tem suporte nativo a forçar a saída como JSON válido
+            # O Gemini tem suporte nativo a forçar a saída como JSON válido
             response = model_instance.generate_content(
                 contents,
                 generation_config=genai.GenerationConfig(
@@ -70,7 +71,7 @@ class GeminiLLM(BaseLLM):
             return json.loads(response.text)
         except json.JSONDecodeError as e:
             logger.error(f"[GeminiLLM] Falha ao parsear JSON retornado: {e}")
-            return {"status": "error", "message": "O Gemini não retornou um JSON válido.", "raw": response.text}
+            raise LLMException("O Gemini não retornou um JSON válido.") from e
         except Exception as e:
             logger.error(f"[GeminiLLM] Falha na requisição API do Gemini: {e}")
-            return {"status": "error", "message": str(e)}
+            raise LLMException(f"Falha na comunicação com o Gemini: {e}") from e

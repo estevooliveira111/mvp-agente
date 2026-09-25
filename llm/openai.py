@@ -2,6 +2,7 @@ import os
 import json
 from typing import List, Dict, Optional
 from llm.base import BaseLLM
+from core.exceptions import LLMException
 from core.logger import logger
 import openai
 
@@ -37,7 +38,7 @@ class OpenAILLM(BaseLLM):
             return response.choices[0].message.content
         except Exception as e:
             logger.error(f"[OpenAILLM] Falha na geração de texto: {e}")
-            return f"Erro na comunicação com a OpenAI: {e}"
+            raise LLMException(f"Falha na comunicação com a OpenAI: {e}") from e
         
     def generate_json(self, prompt: str, system_prompt: Optional[str] = None) -> dict:
         logger.info(f"[OpenAILLM] Gerando JSON estruturado (response_format='json_object') com {self.model}")
@@ -58,7 +59,7 @@ class OpenAILLM(BaseLLM):
             return json.loads(content)
         except json.JSONDecodeError as e:
             logger.error(f"[OpenAILLM] Falha ao decodificar JSON da OpenAI: {e}")
-            return {"status": "error", "message": "O modelo não retornou um JSON válido."}
+            raise LLMException("O modelo não retornou um JSON válido.") from e
         except Exception as e:
             logger.error(f"[OpenAILLM] Falha crítica na API: {e}")
-            return {"status": "error", "message": str(e)}
+            raise LLMException(f"Falha na comunicação com a OpenAI: {e}") from e

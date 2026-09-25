@@ -54,7 +54,12 @@ class ManagerAgent:
             logger.info("[Manager Agent] Delegando para o Planner realizar tarefas complexas.")
             # Passamos a intenção como objetivo para o planner para maior contexto
             objective = intent_data.get("objective", raw_message)
-            plan = self.planner.create_plan(objective=objective, available_tools_metadata=self.tools_metadata)
+            plan = self.planner.create_plan(
+                objective=objective,
+                available_tools_metadata=self.tools_metadata,
+                raw_message=raw_message,
+                history=history,
+            )
             
             for step in plan.get("steps", []):
                 t_name = step.get("tool")

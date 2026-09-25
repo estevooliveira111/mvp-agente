@@ -23,7 +23,7 @@ def get_active_llm() -> BaseLLM:
         return AnthropicLLM()
         
     # 3. Prioridade: Ollama Local (Rede/Localhost)
-    # Se OLLAMA_MODEL estiver no .env, damos prioridade para ele antes da nuvem
+    # Se OLLAMA_MODEL estiver definido no .env, ele vence o Gemini (mas não OpenAI/Anthropic)
     if os.getenv("OLLAMA_MODEL"):
         logger.info(f"[LLM Factory] Detectada configuração do Ollama. Inicializando modelo {os.getenv('OLLAMA_MODEL')}.")
         from llm.ollama import OllamaLLM
@@ -32,11 +32,11 @@ def get_active_llm() -> BaseLLM:
 
     # 4. Prioridade: Google Gemini
     if os.getenv("GEMINI_API_KEY"):
-        logger.info("[LLM Factory] Detectada chave do Gemini. Inicializando Gemini 1.5.")
+        logger.info("[LLM Factory] Detectada chave do Gemini. Inicializando Gemini.")
         from llm.gemini import GeminiLLM
         return GeminiLLM()
         
-    # 4. Fallback: Ollama Local (Localhost - Sem custos/chaves)
+    # 5. Fallback: Ollama Local (Localhost - Sem custos/chaves)
     logger.warning("[LLM Factory] ⚠️ Nenhuma chave de API de Nuvem encontrada no arquivo .env!")
     logger.warning("[LLM Factory] Realizando fallback de emergência para motor open-source local (Ollama).")
     logger.warning("Certifique-se que o serviço Ollama está rodando na porta 11434.")

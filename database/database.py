@@ -4,8 +4,10 @@ from core.config import settings
 from core.logger import logger
 
 # Construção da Connection String do PostgreSQL (Driver psycopg2)
-# Ex: postgresql://admin:adminpassword@localhost:5432/mvp_agente
-DATABASE_URL = f"postgresql://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
+# O driver vai explícito: a partir do SQLAlchemy 2.1, 'postgresql://' passou a usar o
+# psycopg 3, que não está no requirements.txt.
+# Ex: postgresql+psycopg2://admin:adminpassword@localhost:5432/mvp_agente
+DATABASE_URL = f"postgresql+psycopg2://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
 
 try:
     # Cria o motor (engine) de conexão ao Banco Relacional

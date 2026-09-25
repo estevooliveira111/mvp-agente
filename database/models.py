@@ -8,13 +8,15 @@ class User(Base):
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, index=True)
-    # Identificador que vem do canal. Ex: número de telefone do Zap, ou ID do Telegram
+    # Identificador do usuário. Nos canais vem com prefixo (ex: 'telegram:123', 'discord:456');
+    # na API é o nome escolhido no cadastro (sem ':').
     external_id = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=True)
 
-    # Senha para login via API (JWT). Fica nula para usuários criados só por um bot
-    # (Telegram/Discord) até que façam POST /api/v1/auth/register.
+    # Hash bcrypt da senha para login via API (JWT). Fica nulo para usuários criados
+    # por um bot (Telegram/Discord): eles não fazem login pela API.
     hashed_password = Column(String, nullable=True)
+    # Só preenchido em senhas legadas (SHA-256 + salt); o login migra para bcrypt e zera.
     password_salt = Column(String, nullable=True)
 
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -53,32 +55,3 @@ class MessageDB(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
     session = relationship("ChatSessionDB", back_populates="messages")
-
-class EventDB(Base):
-    """Tabela de Eventos da Agenda (Módulo de Agenda nativo)."""
-    __tablename__ = "events"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), index=True)
-    organization_id = Column(String, index=True, nullable=True) # Para suporte a multi-tenant
-    
-    title = Column(String, nullable=False)
-    description = Column(Text, nullable=True)
-    category = Column(String, nullable=True)
-    
-    start_time = Column(DateTime, nullable=False, index=True)
-    end_time = Column(DateTime, nullable=False, index=True)
-    
-    location = Column(String, nullable=True)
-    meeting_link = Column(String, nullable=True)
-    participants = Column(JSON, default=[]) # Lista de emails/nomes
-    
-    priority = Column(String, default="medium") # low, medium, high
-    status = Column(String, default="scheduled") # scheduled, cancelled, completed
-    recurrence = Column(String, nullable=True) # ex: 'FREQ=WEEKLY;INTERVAL=1'
-    reminders = Column(JSON, default=[]) # Lista de lembretes em minutos: [15, 60] (15m, 1h antes)
-    
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
-    
-    user = relationship("User")

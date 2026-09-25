@@ -102,10 +102,10 @@ A arquitetura oferece dois pontos de entrada para inicialização do ecossistema
 
 ### 5. Autenticação da API
 
-As rotas REST de calendário e chat (`/api/v1/calendar/*`, `/api/v1/chat/*`) exigem um token JWT.
+As rotas REST de chat (`/api/v1/chat/*`) exigem um token JWT.
 Os bots (Telegram/Discord) não passam por aqui — eles chamam o orquestrador diretamente em
-processo. O token é necessário apenas para quem consome a API HTTP (o front-end em `ui/` ou
-clientes externos):
+processo. O token é necessário apenas para quem consome a API HTTP (clientes
+externos):
 
 ```bash
 # 1. Registrar um usuário e já receber o token
@@ -118,7 +118,7 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
   -d "username=meu-usuario&password=minha-senha"
 
 # 3. Usar o access_token retornado no header das demais chamadas
-curl http://localhost:8080/api/v1/calendar/events \
+curl http://localhost:8080/api/v1/chat/sessions \
   -H "Authorization: Bearer <access_token>"
 ```
 

@@ -19,6 +19,7 @@ class BaseLLM(ABC):
         """
         Gera uma resposta em formato de texto livre.
         Padrão utilizado pelo Manager Agent para falar com o usuário.
+        Lança LLMException em caso de falha (nunca devolve a mensagem de erro como texto).
         """
         pass
         
@@ -31,5 +32,6 @@ class BaseLLM(ABC):
         """
         Gera uma resposta estritamente estruturada e tipada em JSON.
         Padrão utilizado pelo Planner Agent para acionar ferramentas com segurança.
+        Lança LLMException em caso de falha ou de resposta que não seja JSON.
         """
         pass

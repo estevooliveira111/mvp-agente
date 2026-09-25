@@ -13,11 +13,16 @@ class Settings:
     # Geral
     PROJECT_NAME = "MVP Agente"
     ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+    # Nível do log no console (o arquivo em logs/ sempre registra DEBUG).
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
     
     # Telegram
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
     DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "")
     WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
+    # Segredo enviado ao Telegram no set_webhook e conferido em cada update recebido.
+    # Fora de 'development', sem ele o endpoint /webhook/telegram recusa tudo.
+    TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
     
     # Email / SMTP
     SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
@@ -54,21 +59,11 @@ class Settings:
     CHROMADB_HOST = os.getenv("CHROMADB_HOST", "localhost")
     CHROMADB_PORT = int(os.getenv("CHROMADB_PORT", 8000))
     
-    # Segurança Core
-    # Chave mestre (opcional) que pode ser usada no SecurityManager
-    MASTER_ENCRYPTION_KEY = os.getenv("MASTER_ENCRYPTION_KEY", "")
+    # Pasta única que a ferramenta file_read pode ler (relativa à raiz do projeto).
+    FILE_READ_BASE_DIR = os.getenv("FILE_READ_BASE_DIR", "data/files")
 
-    # CORS: origens do front-end autorizadas a chamar esta API.
-    # Padrão cobre o dev server do Vite (ui/). Em produção, defina via .env.
-    CORS_ORIGINS = [
-        origin.strip()
-        for origin in os.getenv(
-            "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
-        ).split(",")
-        if origin.strip()
-    ]
 
-    # Autenticação (JWT) das rotas REST de calendário/chat.
+    # Autenticação (JWT) das rotas REST de chat.
     # Mesma regra do POSTGRES_PASSWORD: sem valor fora de 'development', falha alto
     # em vez de assinar tokens com uma chave fraca conhecida.
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")

@@ -34,12 +34,10 @@ def db_session(db_engine):
 @pytest.fixture()
 def client(db_session):
     import api.routes.auth as auth_route
-    import api.routes.calendar as calendar_route
     import api.routes.chat as chat_route
 
     app = FastAPI()
     app.include_router(auth_route.router)
-    app.include_router(calendar_route.router)
     app.include_router(chat_route.router)
 
     def override_get_db():

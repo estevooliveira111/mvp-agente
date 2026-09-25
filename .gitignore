@@ -51,3 +51,6 @@ chromadb_data/
 *.swp
 *.swo
 *.env
+
+# Arquivos lidos pela ferramenta file_read
+data/

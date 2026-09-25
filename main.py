@@ -8,6 +8,7 @@ from agents.executor import ExecutorAgent
 from agents.manager import ManagerAgent
 
 from tools.registry import load_all_tools
+from core.identity import channel_session_id, channel_user_id
 
 def main():
     logger.info("Iniciando Interface CLI do MVP Agente...")
@@ -37,8 +38,8 @@ def main():
         tools_metadata=tools_metadata
     )
     
-    session_id = "sessao_cli_local"
-    user_id = "user_terminal"
+    session_id = channel_session_id("cli", "local")
+    user_id = channel_user_id("cli", "terminal")
     
     print("="*60)
     print("🤖 Agente Orquestrador Online (Digite 'sair' para encerrar)")

@@ -2,6 +2,7 @@ import json
 import requests
 from typing import List, Dict, Optional
 from llm.base import BaseLLM
+from core.exceptions import LLMException
 from core.logger import logger
 
 class OllamaLLM(BaseLLM):
@@ -47,8 +48,7 @@ class OllamaLLM(BaseLLM):
                 if attempt < max_retries - 1:
                     time.sleep(3)  # Aguarda 3 segundos antes de tentar novamente
                 else:
-                    return f"Erro de conexão com o servidor Ollama ({self.base_url}): {e}"
-        return "Erro desconhecido ao conectar com o Ollama."
+                    raise LLMException(f"Falha de conexão com o servidor Ollama ({self.base_url}): {e}") from e
         
     def generate_json(self, prompt: str, system_prompt: Optional[str] = None) -> dict:
         max_retries = 3
@@ -69,11 +69,10 @@ class OllamaLLM(BaseLLM):
                 return json.loads(content)
             except json.JSONDecodeError as e:
                 logger.error(f"[OllamaLLM] Falha ao tentar decodificar retorno local para JSON: {e}")
-                return {"status": "error", "message": "O modelo não retornou um JSON válido."}
+                raise LLMException("O modelo não retornou um JSON válido.") from e
             except Exception as e:
                 logger.error(f"[OllamaLLM] Falha crítica de conexão local na tentativa {attempt+1}: {e}")
                 if attempt < max_retries - 1:
                     time.sleep(3)
                 else:
-                    return {"status": "error", "message": str(e)}
-        return {"status": "error", "message": "Falha geral ao conectar com Ollama."}
+                    raise LLMException(f"Falha de conexão com o servidor Ollama ({self.base_url}): {e}") from e

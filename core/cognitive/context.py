@@ -17,9 +17,14 @@ class ContextBuilder:
         logger.info("[ContextBuilder] Montando contexto para a execução...")
         
         # Recupera histórico da conversa (Short-term memory)
+        # Vira dict simples: o ReasoningEngine serializa o pacote com json.dumps, e os
+        # objetos Message (com datetime) quebravam essa serialização a partir da 2ª mensagem.
         recent_history = []
         if self.memory:
-            recent_history = self.memory.get_recent_history(session_id)
+            recent_history = [
+                {"role": msg.role, "content": msg.content}
+                for msg in self.memory.get_recent_history(session_id)
+            ]
             
         # No futuro, buscaremos informações de longo prazo (ChromaDB) e do banco (Postgres)
         user_info = {

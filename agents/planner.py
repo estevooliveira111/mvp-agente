@@ -1,4 +1,6 @@
 import json
+from datetime import datetime
+from typing import Dict, List, Optional
 from core.logger import logger
 from agents.prompts import SYSTEM_PROMPT_PLANNER
 
@@ -11,18 +13,36 @@ class PlannerAgent:
         # Cliente do LLM injetado via construtor (ex: google-generativeai)
         self.llm = llm_client
         
-    def create_plan(self, objective: str, available_tools_metadata: list) -> dict:
+    def create_plan(
+        self,
+        objective: str,
+        available_tools_metadata: list,
+        raw_message: Optional[str] = None,
+        history: Optional[List[Dict[str, str]]] = None,
+    ) -> dict:
         """
         Pede ao LLM para estruturar como resolver o objetivo usando as ferramentas fornecidas.
+        Recebe também a mensagem original e o histórico: o objetivo é um resumo e perde
+        detalhes (destinatários, termos de busca, referências a mensagens anteriores).
         Retorna um dicionário (JSON parseado).
         """
         logger.info(f"[Planner Agent] Criando plano para o objetivo: {objective}")
         
         # 1. Empacota todos os manuais de instrução das ferramentas num grande JSON
         tools_str = json.dumps(available_tools_metadata, indent=2, ensure_ascii=False)
+        history_str = "\n".join(f"{m['role']}: {m['content']}" for m in (history or [])) or "(sem histórico)"
+        # Sem a data atual, o LLM não resolve 'ontem', 'amanhã', 'semana passada'.
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M (%A)")
         
         # 2. Monta o Prompt de Raciocínio (Chain of Thought focado em JSON)
         prompt = f"""
+        DATA E HORA ATUAIS: {now_str}
+
+        HISTÓRICO RECENTE DA CONVERSA:
+        {history_str}
+
+        MENSAGEM ORIGINAL DO USUÁRIO: "{raw_message or objective}"
+
         OBJETIVO DO USUÁRIO: "{objective}"
         
         FERRAMENTAS DISPONÍVEIS:

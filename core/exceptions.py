@@ -34,3 +34,11 @@ class SecurityException(MVPBaseException):
     falha de autenticação ou adulterações detectadas (Tamper/Forense).
     """
     pass
+
+
+class LLMException(MVPBaseException):
+    """
+    Lançada quando um provedor de LLM (pasta llm/) falha: erro de rede/API, recusa
+    do modelo ou resposta que não é o JSON pedido. Quem chama decide o fallback.
+    """
+    pass

@@ -3,6 +3,7 @@ import asyncio
 from core.logger import logger
 from core.config import settings
 from core.agent_bootstrap import manager
+from core.identity import channel_session_id, channel_user_id
 
 # Configurando Intents (necessários para ler conteúdo de mensagens no Discord moderno)
 intents = discord.Intents.default()
@@ -23,8 +24,8 @@ class MVPAgentDiscordBot(discord.Client):
         # Para fins de simplificação, processamos todas as mensagens que o bot tem acesso
         # Em produção, você poderia restringir a uma menção: if self.user.mentioned_in(message):
         
-        session_id = f"discord_{message.channel.id}"
-        user_id = str(message.author.id)
+        session_id = channel_session_id("discord", message.channel.id)
+        user_id = channel_user_id("discord", message.author.id)
         raw_text = message.content.strip()
 
         if not raw_text:

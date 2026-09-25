@@ -37,6 +37,9 @@ def get_current_user(
     except JWTError:
         raise credentials_exception
 
+    if db is None:
+        raise HTTPException(status_code=503, detail="Banco de dados indisponível.")
+
     user = db.query(User).filter(User.external_id == external_id).first()
     if not user:
         raise credentials_exception

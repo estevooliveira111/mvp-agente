@@ -98,7 +98,7 @@ def test_send_message_returns_agent_reply(client, auth_headers, monkeypatch):
 
     response = client.post(
         "/api/v1/chat/sessions/session-1/messages",
-        json={"message": "Qual a agenda de hoje?"},
+        json={"message": "Quais são as notícias de hoje?"},
         headers=auth_headers,
     )
 
@@ -123,3 +123,32 @@ def test_send_message_returns_502_when_agent_fails(client, auth_headers, monkeyp
     )
 
     assert response.status_code == 502
+
+
+def test_send_message_returns_404_for_another_users_session(
+    client, db_session, auth_headers, other_user_auth_headers, monkeypatch
+):
+    import api.routes.chat as chat_route
+
+    save_message(db_session, "user-1", "session-1", "user", "conversa privada")
+    monkeypatch.setattr(
+        chat_route.manager, "process_message", lambda session_id, user_id, raw_message: "não deveria rodar"
+    )
+
+    response = client.post(
+        "/api/v1/chat/sessions/session-1/messages",
+        json={"message": "me mostre o histórico"},
+        headers=other_user_auth_headers,
+    )
+
+    assert response.status_code == 404
+
+
+def test_send_message_rejects_channel_session_prefix(client, auth_headers):
+    response = client.post(
+        "/api/v1/chat/sessions/telegram_123/messages",
+        json={"message": "oi"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 422

@@ -1,9 +1,12 @@
+import asyncio
+import secrets
+from collections import OrderedDict
 import uvicorn
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, HTTPException, Request
 from core.logger import logger
 from core.config import settings
 from core.agent_bootstrap import manager
+from core.identity import channel_session_id, channel_user_id
 
 from telegram import Update, Bot
 from pymemcache.client.base import Client
@@ -13,12 +16,6 @@ import os
 # Ajuste de path para importação local se necessário
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-try:
-    from api.routes import calendar
-except ImportError:
-    pass
-
-
 # ==========================================
 # Inicialização do Servidor FastAPI
 # ==========================================
@@ -27,20 +24,6 @@ app = FastAPI(
     description="Interface de Webhooks robusta com deduplicação para conectar canais com a IA.",
     version="1.1.0"
 )
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-try:
-    from api.routes import calendar
-    app.include_router(calendar.router)
-except Exception as e:
-    logger.error(f"Não foi possível carregar rotas do calendário: {e}")
 
 try:
     from api.routes import chat
@@ -62,13 +45,20 @@ try:
 except Exception:
     cache = None
 
-processed_updates_ram = set() # Fallback de memória caso Memcached não conecte
+# Fallback de memória caso Memcached não conecte. Limitado: guarda só os últimos
+# PROCESSED_UPDATES_MAX update_ids (o Telegram só reenvia updates recentes).
+PROCESSED_UPDATES_MAX = 10000
+processed_updates_ram = OrderedDict()
 
-import asyncio
-try:
-    from core.scheduler import reminder_worker
-except ImportError:
-    reminder_worker = None
+
+def already_processed_in_ram(update_id: str) -> bool:
+    """Marca o update como processado e diz se ele já tinha sido visto."""
+    if update_id in processed_updates_ram:
+        return True
+    processed_updates_ram[update_id] = True
+    if len(processed_updates_ram) > PROCESSED_UPDATES_MAX:
+        processed_updates_ram.popitem(last=False)
+    return False
 
 from database.database import engine, Base
 import database.models  # Garante que os models estão registrados no Base.metadata
@@ -88,14 +78,15 @@ async def startup_event():
     logger.info("Iniciando bot do Discord...")
     start_discord_bot_background()
 
-    if reminder_worker:
-        asyncio.create_task(reminder_worker())
-        
     if settings.TELEGRAM_BOT_TOKEN and settings.WEBHOOK_URL:
         try:
             async with Bot(token=settings.TELEGRAM_BOT_TOKEN) as bot:
                 webhook_url = f"{settings.WEBHOOK_URL.rstrip('/')}/webhook/telegram"
-                await bot.set_webhook(url=webhook_url)
+                # O Telegram devolve esse segredo no header de cada update (ver telegram_webhook).
+                await bot.set_webhook(
+                    url=webhook_url,
+                    secret_token=settings.TELEGRAM_WEBHOOK_SECRET or None,
+                )
                 logger.info(f"✅ Webhook do Telegram registrado automaticamente em: {webhook_url}")
         except Exception as e:
             logger.error(f"❌ Falha ao registrar webhook do Telegram automaticamente: {e}")
@@ -110,6 +101,17 @@ async def telegram_webhook(request: Request):
     Endpoint de Inbound Webhook Seguro (Telegram Oficial).
     Utiliza Deduplicação Distribuída (Memcached) para evitar mensagens clones.
     """
+    # Sem essa checagem, qualquer um poderia postar um update falso se passando
+    # por qualquer usuário do Telegram.
+    if settings.TELEGRAM_WEBHOOK_SECRET:
+        received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if not secrets.compare_digest(received_secret, settings.TELEGRAM_WEBHOOK_SECRET):
+            logger.warning("Webhook Bloqueado: secret token do Telegram ausente ou inválido.")
+            raise HTTPException(status_code=403, detail="Secret token inválido.")
+    elif settings.ENVIRONMENT != "development":
+        logger.error("Webhook Bloqueado: TELEGRAM_WEBHOOK_SECRET não configurado fora de 'development'.")
+        raise HTTPException(status_code=403, detail="Webhook não configurado.")
+
     try:
         data = await request.json()
     except Exception:
@@ -139,13 +141,11 @@ async def telegram_webhook(request: Request):
                 cache.set(f"telegram_update_{update_id}", "1", expire=7200)
             except Exception as e:
                 logger.error(f"Erro no Memcached: {e}. Usando RAM.")
-                if update_id in processed_updates_ram:
+                if already_processed_in_ram(update_id):
                     return {"status": "success", "message": "Already processed"}
-                processed_updates_ram.add(update_id)
         else:
-            if update_id in processed_updates_ram:
+            if already_processed_in_ram(update_id):
                 return {"status": "success", "message": "Already processed"}
-            processed_updates_ram.add(update_id)
             
         # ==========================================
         # Processamento e Resposta
@@ -154,14 +154,17 @@ async def telegram_webhook(request: Request):
             return {"status": "ignored", "reason": "No valid text message"}
             
         chat_id = str(update.message.chat_id)
-        user_id = str(update.message.from_user.id)
+        user_id = channel_user_id("telegram", update.message.from_user.id)
         user_message = update.message.text.strip()
         
         logger.info(f"[Webhook] Mensagem recebida de {user_id}: {user_message}")
         
         try:
-            agent_response = manager.process_message(
-                session_id=chat_id,
+            # process_message é bloqueante (várias chamadas de LLM): roda numa thread
+            # para não travar o event loop e as outras requisições.
+            agent_response = await asyncio.to_thread(
+                manager.process_message,
+                session_id=channel_session_id("telegram", chat_id),
                 user_id=user_id,
                 raw_message=user_message
             )

@@ -25,11 +25,11 @@ class IntentDetector:
         
         system_prompt = """
 Você é um analisador avançado de intenções (Intent Detector).
-Sua função é ler a mensagem do usuário e extrair informações cruciais para o sistema de racicação.
+Sua função é ler a mensagem do usuário e extrair informações cruciais para o sistema de raciocínio.
 Retorne um JSON estrito seguindo este schema:
 
 {
-  "primary_intent": "NomeDaIntencao (Ex: Calendar.CreateEvent, Info.Query, etc)",
+  "primary_intent": "NomeDaIntencao. Use exatamente 'Greeting' para saudações e 'SmallTalk' para conversa casual; nos demais casos, algo como 'Info.Query' ou 'Email.Send'",
   "objective": "Descrição curta do objetivo principal",
   "priority": "low | medium | high | critical",
   "urgency": "low | medium | high",

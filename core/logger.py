@@ -2,6 +2,7 @@ import logging
 from logging.handlers import TimedRotatingFileHandler
 import sys
 import os
+from core.config import settings
 
 def setup_logger(name: str = "CoreLogger") -> logging.Logger:
     """
@@ -20,9 +21,9 @@ def setup_logger(name: str = "CoreLogger") -> logging.Logger:
             datefmt='%Y-%m-%d %H:%M:%S'
         )
         
-        # 1. Output para o Console (Apenas INFO pra cima para manter a tela limpa)
+        # 1. Output para o Console (nível vindo de LOG_LEVEL; padrão INFO para manter a tela limpa)
         console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(logging.INFO)
+        console_handler.setLevel(getattr(logging, settings.LOG_LEVEL, logging.INFO))
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
         

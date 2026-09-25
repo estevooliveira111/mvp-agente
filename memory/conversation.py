@@ -11,10 +11,12 @@ class ConversationMemory:
     def __init__(self):
         # Buffer rápido em memória, usado pelo Context Builder a cada turno.
         # Cada mensagem também é persistida no Postgres (ver _persist) para
-        # sobreviver a reinícios e alimentar o histórico exibido no front-end.
+        # sobreviver a reinícios e alimentar o histórico exposto pela API de chat.
         self._sessions: Dict[str, ChatSession] = {}
 
     def add_message(self, session_id: str, user_id: str, message: Message):
+        if session_id not in self._sessions:
+            self._load(session_id)
         if session_id not in self._sessions:
             self._sessions[session_id] = ChatSession(session_id=session_id, user_id=user_id)
 
@@ -48,11 +50,43 @@ class ConversationMemory:
         except Exception as e:
             logger.error(f"[ConversationMemory] Falha ao persistir mensagem no banco: {e}")
         
+    def _load(self, session_id: str) -> None:
+        """
+        Recarrega do banco uma sessão que não está no buffer (ex: depois de um restart).
+        Best-effort: se o banco falhar, a conversa segue sem histórico.
+        """
+        try:
+            from database.database import SessionLocal
+            from database.chat_repository import list_messages_for_session
+            from database.models import ChatSessionDB
+
+            if SessionLocal is None:
+                return
+
+            db = SessionLocal()
+            try:
+                db_session = db.query(ChatSessionDB).filter(ChatSessionDB.session_id == session_id).first()
+                if not db_session:
+                    return
+
+                session = ChatSession(session_id=session_id, user_id=db_session.user.external_id)
+                for row in list_messages_for_session(db, session_id) or []:
+                    session.messages.append(
+                        Message(role=row.role, content=row.content, timestamp=row.created_at, metadata=row.metadata_json or {})
+                    )
+                self._sessions[session_id] = session
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"[ConversationMemory] Falha ao recarregar sessão do banco: {e}")
+
     def get_recent_history(self, session_id: str, limit: int = 10) -> List[Message]:
         """
         Retorna as últimas N mensagens da sessão.
         Isso é crucial para não estourar o limite de tokens (Context Window) do modelo.
         """
+        if session_id not in self._sessions:
+            self._load(session_id)
         if session_id not in self._sessions:
             return []
         
